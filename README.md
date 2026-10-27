@@ -45,14 +45,25 @@ Respect Nominatim and Overpass usage policies on public instances.
 
 ## Docker
 
+**Local (no Traefik), port 3001:**
+
 ```bash
 cp .env.example .env
-# Ensure external Traefik network exists: docker network create traefik
-docker compose build
-docker compose up -d
+docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
 ```
 
-Compose uses `expose: ["3000"]` (no host `ports`) for Traefik. Health: `GET /api/health`.
+**Behind Traefik:**
+
+```bash
+cp .env.example .env
+docker network create traefik   # once
+# set DOMAIN / TRAEFIK_* in .env
+docker compose up --build -d
+```
+
+Compose uses `expose: ["3000"]` for Traefik (no host ports unless you use the local override). Health: `GET /api/health`.
+
+Optional Basic Auth: set both `AUTH_USER` and `AUTH_PASSWORD` (health stays public).
 
 ## Status
 
@@ -60,6 +71,8 @@ Compose uses `expose: ["3000"]` (no host `ports`) for Traefik. Health: `GET /api
 - **Step 2** — Overpass nearby search, results list, markers + card sync, coverage. See [`STEP2_SUMMARY.md`](./STEP2_SUMMARY.md).
 - **Step 3** — Google Places details drawer (hours, ratings, reviews, photos via official API). See [`STEP3_SUMMARY.md`](./STEP3_SUMMARY.md).
 - **Step 4** — Result filters, compare tray, CSV/JSON/HTML exports (OSM only). See [`STEP4_SUMMARY.md`](./STEP4_SUMMARY.md).
+- **Step 5** — Docker / Traefik polish, optional Basic Auth. See [`STEP5_SUMMARY.md`](./STEP5_SUMMARY.md).
+- **Later** — Google key enablement and follow-ups in [`TODO.md`](./TODO.md).
 
 ## License / attribution
 

@@ -32,4 +32,4 @@ Traefik polish, Google Cloud enablement checklist beyond Step 3, auth middleware
 
 ## What's next
 
-PD-5: Traefik / Docker polish + Google Cloud enablement checklist (ops).
+PD-5: Traefik / Docker polish + ops — see [`STEP5_SUMMARY.md`](./STEP5_SUMMARY.md). Google key setup is parked in [`TODO.md`](./TODO.md).

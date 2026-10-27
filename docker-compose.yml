@@ -4,7 +4,8 @@ services:
     container_name: places-discovery
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -22,6 +23,12 @@ services:
       - traefik.http.routers.places-discovery.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
       - traefik.http.routers.places-discovery.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
       - traefik.http.services.places-discovery.loadbalancer.server.port=3000
+      - traefik.http.routers.places-discovery.middlewares=places-discovery-headers
+      - traefik.http.middlewares.places-discovery-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.places-discovery-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.places-discovery-headers.headers.browserXssFilter=true
+      - traefik.http.middlewares.places-discovery-headers.headers.referrerPolicy=strict-origin-when-cross-origin
+      - traefik.http.middlewares.places-discovery-headers.headers.customFrameOptionsValue=SAMEORIGIN
     healthcheck:
       test:
         [
@@ -33,7 +40,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 25s
 
 networks:
   traefik:
