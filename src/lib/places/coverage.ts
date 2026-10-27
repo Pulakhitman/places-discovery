@@ -1,10 +1,12 @@
 import type { FieldCoverage, OsmPlace } from "./types";
 
 function pct(part: number, total: number): number {
-  if (total <= 0) {
+  if (total <= 0 || part <= 0) {
     return 0;
   }
-  return Math.round((part / total) * 100);
+  const rounded = Math.round((part / total) * 100);
+  // Keep a visible 1% when at least one place is tagged but the share rounds to 0.
+  return rounded === 0 ? 1 : rounded;
 }
 
 export function computeOsmCoverage(places: OsmPlace[]): FieldCoverage {
