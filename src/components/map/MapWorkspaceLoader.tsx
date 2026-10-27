@@ -23,6 +23,7 @@ type Props = {
   center: MapCenter | null;
   radiusKm: number;
   boundingBox?: [number, number, number, number];
+  zoom?: number;
   places?: OsmPlace[];
   selectedPlaceId?: string | null;
   onCenterChange: (center: MapCenter) => void;

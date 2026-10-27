@@ -3,6 +3,8 @@ export type LocationLevel = "country" | "region" | "county" | "city";
 export type CountryOption = {
   code: string;
   name: string;
+  lat?: number;
+  lng?: number;
 };
 
 export type GeocodeResult = {

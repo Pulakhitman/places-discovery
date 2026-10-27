@@ -21,7 +21,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-8 sm:px-6">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-8 sm:px-6 lg:min-h-0">
         <h1 className="sr-only">Places Discovery workspace</h1>
         <PlacesWorkspace />
       </main>

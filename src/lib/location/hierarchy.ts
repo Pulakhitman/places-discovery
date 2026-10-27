@@ -123,13 +123,38 @@ export function deepestSelection(
 export function mapFocusFromSelection(selection: LocationSelection): {
   center: { lat: number; lng: number } | null;
   boundingBox?: [number, number, number, number];
+  /** Suggested map zoom when no bounding box is available. */
+  zoom?: number;
 } {
-  const geo =
-    selection.city ?? selection.county ?? selection.region ?? undefined;
-  if (geo) {
+  if (selection.city) {
     return {
-      center: { lat: geo.lat, lng: geo.lng },
-      boundingBox: geo.boundingBox,
+      center: { lat: selection.city.lat, lng: selection.city.lng },
+      boundingBox: selection.city.boundingBox,
+      zoom: 12,
+    };
+  }
+  if (selection.county) {
+    return {
+      center: { lat: selection.county.lat, lng: selection.county.lng },
+      boundingBox: selection.county.boundingBox,
+      zoom: 10,
+    };
+  }
+  if (selection.region) {
+    return {
+      center: { lat: selection.region.lat, lng: selection.region.lng },
+      boundingBox: selection.region.boundingBox,
+      zoom: 7,
+    };
+  }
+  if (
+    selection.country &&
+    typeof selection.country.lat === "number" &&
+    typeof selection.country.lng === "number"
+  ) {
+    return {
+      center: { lat: selection.country.lat, lng: selection.country.lng },
+      zoom: 5,
     };
   }
   return { center: null };

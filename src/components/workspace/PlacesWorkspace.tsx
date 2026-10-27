@@ -31,9 +31,9 @@ export function PlacesWorkspace() {
 
   const handleSelectionChange = useCallback((next: LocationSelection) => {
     setSelection(next);
-    const { center: nextCenter } = mapFocusFromSelection(next);
-    if (nextCenter) {
-      setCenter(nextCenter);
+    const nextFocus = mapFocusFromSelection(next);
+    if (nextFocus.center) {
+      setCenter(nextFocus.center);
     }
   }, []);
 
@@ -116,9 +116,25 @@ export function PlacesWorkspace() {
     }
   }, [center, radiusKm, category, customKeyword]);
 
+  const mapCenter = center ?? focus.center;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:gap-6">
-      <aside className="flex w-full shrink-0 flex-col gap-6 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm lg:w-[22rem] xl:w-[24rem]">
+      {/* Map first on small screens so it stays usable above the fold */}
+      <div className="order-1 h-[42vh] min-h-[260px] w-full shrink-0 sm:h-[48vh] lg:order-2 lg:h-auto lg:min-h-0 lg:flex-1">
+        <MapWorkspaceLoader
+          center={mapCenter}
+          boundingBox={focus.boundingBox}
+          zoom={focus.zoom}
+          radiusKm={radiusKm}
+          places={places}
+          selectedPlaceId={selectedPlaceId}
+          onCenterChange={setCenter}
+          onSelectPlace={setSelectedPlaceId}
+        />
+      </div>
+
+      <aside className="order-2 flex w-full shrink-0 flex-col gap-6 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm lg:order-1 lg:max-h-[calc(100vh-8rem)] lg:w-[22rem] xl:w-[24rem]">
         <LocationHierarchy
           selection={selection}
           onChange={handleSelectionChange}
@@ -133,7 +149,7 @@ export function PlacesWorkspace() {
           onRadiusChange={setRadiusKm}
           onCustomKeywordChange={setCustomKeyword}
           onSearch={() => void runSearch()}
-          disabled={!center}
+          disabled={!mapCenter}
         />
         <hr className="border-[var(--line)]" />
         <ResultsPanel
@@ -144,23 +160,11 @@ export function PlacesWorkspace() {
         />
         <p className="text-xs text-[var(--muted)]">
           Center:{" "}
-          {center
-            ? `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}`
-            : "not set — pick an area or click the map"}
+          {mapCenter
+            ? `${mapCenter.lat.toFixed(5)}, ${mapCenter.lng.toFixed(5)}`
+            : "not set — pick a country/area or tap the map"}
         </p>
       </aside>
-
-      <div className="min-h-[50vh] flex-1 lg:min-h-0">
-        <MapWorkspaceLoader
-          center={center ?? focus.center}
-          boundingBox={focus.boundingBox}
-          radiusKm={radiusKm}
-          places={places}
-          selectedPlaceId={selectedPlaceId}
-          onCenterChange={setCenter}
-          onSelectPlace={setSelectedPlaceId}
-        />
-      </div>
     </div>
   );
 }

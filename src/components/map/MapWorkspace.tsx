@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Circle,
   CircleMarker,
@@ -30,19 +30,55 @@ type Props = {
   center: MapCenter | null;
   radiusKm: number;
   boundingBox?: [number, number, number, number];
+  zoom?: number;
   places?: OsmPlace[];
   selectedPlaceId?: string | null;
   onCenterChange: (center: MapCenter) => void;
   onSelectPlace?: (id: string | null) => void;
 };
 
+function MapInvalidateSize() {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    const kick = () => {
+      map.invalidateSize({ animate: false });
+    };
+
+    kick();
+    const t1 = window.setTimeout(kick, 100);
+    const t2 = window.setTimeout(kick, 400);
+
+    const ro =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => kick())
+        : null;
+    ro?.observe(container);
+    window.addEventListener("orientationchange", kick);
+    window.addEventListener("resize", kick);
+
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      ro?.disconnect();
+      window.removeEventListener("orientationchange", kick);
+      window.removeEventListener("resize", kick);
+    };
+  }, [map]);
+
+  return null;
+}
+
 function MapFocus({
   center,
   boundingBox,
+  zoom,
   hasPlaces,
 }: {
   center: MapCenter | null;
   boundingBox?: [number, number, number, number];
+  zoom?: number;
   hasPlaces: boolean;
 }) {
   const map = useMap();
@@ -61,16 +97,17 @@ function MapFocus({
         ],
         { padding: [24, 24], maxZoom: 12 },
       );
+      map.invalidateSize({ animate: false });
       return;
     }
     if (center) {
-      map.setView([center.lat, center.lng], Math.max(map.getZoom(), 10), {
-        animate: true,
-      });
+      const nextZoom = zoom ?? Math.max(map.getZoom(), 10);
+      map.setView([center.lat, center.lng], nextZoom, { animate: true });
+      map.invalidateSize({ animate: false });
       return;
     }
     map.setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], WORLD_ZOOM);
-  }, [map, center, boundingBox, hasPlaces]);
+  }, [map, center, boundingBox, zoom, hasPlaces]);
 
   return null;
 }
@@ -86,7 +123,6 @@ function FitPlaces({ places }: { places: OsmPlace[] }) {
       places.map((p) => [p.lat, p.lng] as [number, number]),
     );
     map.fitBounds(bounds.pad(0.15), { maxZoom: 15, animate: true });
-    // Leaflet sometimes needs a kick after dynamic layer changes.
     window.setTimeout(() => map.invalidateSize(), 50);
   }, [map, places]);
 
@@ -136,16 +172,19 @@ export function MapWorkspace({
   center,
   radiusKm,
   boundingBox,
+  zoom,
   places = [],
   selectedPlaceId = null,
   onCenterChange,
   onSelectPlace,
 }: Props) {
+  const shellRef = useRef<HTMLDivElement>(null);
   const activeCenter = center ?? DEFAULT_CENTER;
   const radiusMeters = useMemo(() => radiusKm * 1000, [radiusKm]);
 
   return (
     <div
+      ref={shellRef}
       className="map-shell relative h-full min-h-[280px] w-full overflow-hidden rounded-xl border border-[var(--line)]"
       role="region"
       aria-label="Map workspace"
@@ -153,7 +192,7 @@ export function MapWorkspace({
       <MapContainer
         center={[DEFAULT_CENTER.lat, DEFAULT_CENTER.lng]}
         zoom={WORLD_ZOOM}
-        className="h-full w-full z-0"
+        className="absolute inset-0 z-0 h-full w-full"
         scrollWheelZoom
         attributionControl
       >
@@ -161,9 +200,11 @@ export function MapWorkspace({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <MapInvalidateSize />
         <MapFocus
           center={center}
           boundingBox={boundingBox}
+          zoom={zoom}
           hasPlaces={places.length > 0}
         />
         <FitPlaces places={places} />
@@ -211,7 +252,6 @@ export function MapWorkspace({
               }}
               eventHandlers={{
                 click: (e) => {
-                  // Must not set a new search center — only select the place.
                   L.DomEvent.stopPropagation(e.originalEvent);
                   onSelectPlace?.(place.id);
                 },

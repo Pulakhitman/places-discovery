@@ -3,6 +3,7 @@ import {
   breadcrumbLabels,
   clearGeocodeLevel,
   invalidateChildren,
+  mapFocusFromSelection,
   pickFromResults,
   selectGeocodeLevel,
   setCountry,
@@ -111,6 +112,35 @@ describe("hierarchy invalidate / reset", () => {
         country: { code: "US", name: "United States of America" },
       }),
     ).toEqual(["United States of America"]);
+  });
+});
+
+describe("mapFocusFromSelection", () => {
+  it("zooms to country center when only country is selected", () => {
+    const focus = mapFocusFromSelection({
+      country: {
+        code: "US",
+        name: "United States of America",
+        lat: 38,
+        lng: -97,
+      },
+    });
+    expect(focus.center).toEqual({ lat: 38, lng: -97 });
+    expect(focus.zoom).toBe(5);
+  });
+
+  it("prefers city over country for focus", () => {
+    const focus = mapFocusFromSelection({
+      country: { code: "US", name: "United States of America", lat: 38, lng: -97 },
+      city: {
+        id: "3",
+        displayName: "Los Angeles",
+        lat: 34.05,
+        lng: -118.24,
+      },
+    });
+    expect(focus.center?.lat).toBe(34.05);
+    expect(focus.zoom).toBe(12);
   });
 });
 
