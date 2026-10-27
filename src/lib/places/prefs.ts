@@ -10,11 +10,14 @@ export type SearchPrefs = {
   sort: PlaceSortId;
 };
 
-const DEFAULTS: SearchPrefs = {
+/** Stable SSR/client defaults — never read localStorage during render. */
+export const DEFAULT_SEARCH_PREFS: SearchPrefs = {
   category: "parks",
   radiusKm: 5,
   sort: "distance",
 };
+
+const DEFAULTS = DEFAULT_SEARCH_PREFS;
 
 function isCategory(value: unknown): value is PlaceCategoryId {
   return PLACE_CATEGORIES.some((c) => c.id === value);

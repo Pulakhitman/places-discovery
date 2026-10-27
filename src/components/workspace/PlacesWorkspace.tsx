@@ -26,7 +26,11 @@ import {
   type ResultFilters,
 } from "@/lib/places/filters";
 import { formatLatLng } from "@/lib/places/format";
-import { loadSearchPrefs, saveSearchPrefs } from "@/lib/places/prefs";
+import {
+  DEFAULT_SEARCH_PREFS,
+  loadSearchPrefs,
+  saveSearchPrefs,
+} from "@/lib/places/prefs";
 import { sortPlaces, type PlaceSortId } from "@/lib/places/sort";
 import type {
   FieldCoverage,
@@ -37,17 +41,19 @@ import type { PlaceCategoryId, SearchRadiusKm } from "@/lib/search/categories";
 import { buildMapPlaceholders } from "@/lib/search/placeholders";
 
 export function PlacesWorkspace() {
-  const initialPrefs = useMemo(() => loadSearchPrefs(), []);
+  // Defaults only on first paint so SSR HTML matches the client (localStorage
+  // is applied in an effect after hydration).
   const [selection, setSelection] = useState<LocationSelection>({});
   const [center, setCenter] = useState<MapCenter | null>(null);
   const [category, setCategory] = useState<PlaceCategoryId>(
-    initialPrefs.category,
+    DEFAULT_SEARCH_PREFS.category,
   );
   const [radiusKm, setRadiusKm] = useState<SearchRadiusKm>(
-    initialPrefs.radiusKm,
+    DEFAULT_SEARCH_PREFS.radiusKm,
   );
   const [customKeyword, setCustomKeyword] = useState("");
-  const [sort, setSort] = useState<PlaceSortId>(initialPrefs.sort);
+  const [sort, setSort] = useState<PlaceSortId>(DEFAULT_SEARCH_PREFS.sort);
+  const [prefsReady, setPrefsReady] = useState(false);
   const [searchState, setSearchState] = useState<SearchState>({ status: "idle" });
   const [places, setPlaces] = useState<OsmPlace[]>([]);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
@@ -67,8 +73,19 @@ export function PlacesWorkspace() {
   const mapCenter = center ?? focus.center;
 
   useEffect(() => {
+    const prefs = loadSearchPrefs();
+    setCategory(prefs.category);
+    setRadiusKm(prefs.radiusKm);
+    setSort(prefs.sort);
+    setPrefsReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!prefsReady) {
+      return;
+    }
     saveSearchPrefs({ category, radiusKm, sort });
-  }, [category, radiusKm, sort]);
+  }, [prefsReady, category, radiusKm, sort]);
 
   const mapPlaceholders = useMemo(() => {
     if (!mapCenter) {
