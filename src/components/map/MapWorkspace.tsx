@@ -475,11 +475,15 @@ export function MapWorkspace({
         ) : places.length > 0 ? (
           <>
             Category icons = places ({places.length}) · teal pin = center ·{" "}
-            {radiusKm} km · tap a pin for details
+            {searchMode === "area" ? "selected area" : `${radiusKm} km radius`}{" "}
+            · tap a pin for details
           </>
         ) : (
           <>
-            Teal pin = search center (drag or tap map) · {searchMode === "area" ? "selected area box" : `${radiusKm} km radius`}
+            Teal pin = search center (drag or tap map) ·{" "}
+            {searchMode === "area"
+              ? "selected area box"
+              : `${radiusKm} km radius`}
           </>
         )}
       </div>

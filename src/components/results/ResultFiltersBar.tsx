@@ -16,6 +16,15 @@ type Props = {
   filteredCount: number;
 };
 
+const QUALITY_PRESET: ResultFilters = {
+  namedOnly: true,
+  hasAddress: true,
+  hasHours: true,
+  hasWebsite: true,
+  hasPhone: true,
+  maxDistanceM: null,
+};
+
 export function ResultFiltersBar({
   filters,
   onChange,
@@ -74,40 +83,70 @@ export function ResultFiltersBar({
         </select>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-[var(--ink)]">
-        <FilterCheck
-          id="filter-named"
-          label="Named only"
-          checked={filters.namedOnly}
-          onChange={() => toggle("namedOnly")}
-        />
-        <FilterCheck
-          id="filter-address"
-          label="Has address"
-          checked={filters.hasAddress}
-          onChange={() => toggle("hasAddress")}
-        />
-        <FilterCheck
-          id="filter-hours"
-          label="Has hours"
-          checked={filters.hasHours}
-          onChange={() => toggle("hasHours")}
-        />
-        <FilterCheck
-          id="filter-website"
-          label="Has website"
-          checked={filters.hasWebsite}
-          onChange={() => toggle("hasWebsite")}
-        />
-        <FilterCheck
-          id="filter-phone"
-          label="Has phone"
-          checked={filters.hasPhone}
-          onChange={() => toggle("hasPhone")}
-        />
-      </div>
+      <fieldset className="mt-3">
+        <legend className="text-xs font-semibold text-[var(--ink)]">
+          OSM quality
+        </legend>
+        <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+          Keep places that already have these OpenStreetMap tags.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-[var(--ink)]">
+          <FilterCheck
+            id="filter-named"
+            label="Named"
+            checked={filters.namedOnly}
+            onChange={() => toggle("namedOnly")}
+          />
+          <FilterCheck
+            id="filter-address"
+            label="Has address"
+            checked={filters.hasAddress}
+            onChange={() => toggle("hasAddress")}
+          />
+          <FilterCheck
+            id="filter-hours"
+            label="Has hours"
+            checked={filters.hasHours}
+            onChange={() => toggle("hasHours")}
+          />
+          <FilterCheck
+            id="filter-website"
+            label="Has website"
+            checked={filters.hasWebsite}
+            onChange={() => toggle("hasWebsite")}
+          />
+          <FilterCheck
+            id="filter-phone"
+            label="Has phone"
+            checked={filters.hasPhone}
+            onChange={() => toggle("hasPhone")}
+          />
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-[11px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]"
+            onClick={() => onChange(QUALITY_PRESET)}
+          >
+            Fully tagged preset
+          </button>
+          <button
+            type="button"
+            className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-[11px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]"
+            onClick={() =>
+              onChange({
+                ...DEFAULT_RESULT_FILTERS,
+                hasHours: true,
+                hasWebsite: true,
+              })
+            }
+          >
+            Hours + website
+          </button>
+        </div>
+      </fieldset>
 
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-3 flex items-center gap-2">
         <label
           htmlFor="filter-distance"
           className="text-xs font-medium text-[var(--ink)]"
@@ -135,9 +174,10 @@ export function ResultFiltersBar({
         </select>
       </div>
 
-      <p className="mt-2 text-[11px] text-[var(--muted)]">
+      <p className="mt-2 text-[11px] text-[var(--muted)]" role="status">
         Showing {filteredCount} of {totalCount} place
         {totalCount === 1 ? "" : "s"}
+        {active > 0 ? " (quality filters on)" : ""}
       </p>
     </section>
   );

@@ -33,10 +33,12 @@ export type FieldCoverage = {
   websitePct: number;
   phonePct: number;
   addressPct: number;
+  namedPct: number;
   withHours: number;
   withWebsite: number;
   withPhone: number;
   withAddress: number;
+  withNamed: number;
 };
 
 export type PlacesSearchSuccess = {

@@ -43,6 +43,11 @@ export type GooglePlaceDetails = {
   phone?: string;
   website?: string;
   googleMapsUri?: string;
+  /**
+   * Customer ID parsed from `googleMapsUri` when Places includes `?cid=`.
+   * Not the same as scrape-style Maps `data_id` (which the official API does not return).
+   */
+  mapsCid?: string;
   rating?: number;
   userRatingCount?: number;
   reviews: GooglePlaceReview[];

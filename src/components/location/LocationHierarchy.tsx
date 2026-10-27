@@ -228,8 +228,8 @@ export function LocationHierarchy({ selection, onChange }: Props) {
         </h2>
         <p className="text-sm text-[var(--muted)]">
           Pick country → region/state → county (US) → city. After a county is
-          chosen, the city list narrows to that county. Nothing is auto-selected —
-          pick an option, or Skip a level.
+          chosen, cities filter to that county. Nothing is auto-selected — pick
+          an option, or Skip a level. The map follows your deepest selection.
         </p>
       </div>
 

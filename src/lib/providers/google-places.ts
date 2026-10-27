@@ -1,5 +1,7 @@
 import { setCachedGoogleDetails } from "@/lib/places/google-details-cache";
+import { extractCidFromMapsUri } from "@/lib/places/google-ids";
 import { scoreGoogleMatch, type GoogleMatchInfo } from "@/lib/places/google-match";
+import { recordGoogleUsage } from "@/lib/places/google-usage";
 import type {
   GooglePlaceDetails,
   GooglePlacePhoto,
@@ -248,6 +250,8 @@ export function mapGooglePlaceDetails(
       undefined,
     website: raw.websiteUri?.trim() || undefined,
     googleMapsUri: raw.googleMapsUri?.trim() || undefined,
+    mapsCid:
+      extractCidFromMapsUri(raw.googleMapsUri?.trim()) ?? undefined,
     rating: raw.rating,
     userRatingCount: raw.userRatingCount,
     reviews,
@@ -303,6 +307,7 @@ export async function searchGoogleNearby(params: {
   if (!res.ok) {
     throwForResponse(res);
   }
+  recordGoogleUsage("nearby_search");
 
   const data = (await res.json()) as { places?: GooglePlaceRaw[] };
   if (!data || !Array.isArray(data.places)) {
@@ -349,6 +354,7 @@ export async function searchGoogleText(params: {
   if (!res.ok) {
     throwForResponse(res);
   }
+  recordGoogleUsage("text_search");
 
   const data = (await res.json()) as { places?: GooglePlaceRaw[] };
   if (!data || !Array.isArray(data.places)) {
@@ -387,6 +393,7 @@ export async function getGooglePlaceDetails(
   if (!res.ok) {
     throwForResponse(res);
   }
+  recordGoogleUsage("place_details");
 
   const raw = (await res.json()) as GooglePlaceRaw;
   const details = mapGooglePlaceDetails(raw);
@@ -471,6 +478,7 @@ export async function fetchGooglePlacePhoto(params: {
     if (!res.ok) {
       throwForResponse(res);
     }
+    recordGoogleUsage("place_photo");
     const contentType = res.headers.get("content-type") || "image/jpeg";
     // skipHttpRedirect=true returns JSON with photoUri — follow that.
     if (contentType.includes("application/json")) {

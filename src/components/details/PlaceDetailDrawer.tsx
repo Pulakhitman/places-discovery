@@ -11,12 +11,14 @@ import type {
 import {
   formatDistance,
   formatLatLng,
+  normalizeHttpUrl,
   osmBrowseUrl,
 } from "@/lib/places/format";
 import {
   readSessionGooglePlace,
   writeSessionGooglePlace,
 } from "@/lib/places/google-session-place";
+import { placesResourceName } from "@/lib/places/google-ids";
 import {
   skimGoogleReviews,
   type ReviewSkimMinStars,
@@ -203,45 +205,52 @@ function PlaceDetailDrawerInner({
     };
   }, [place.id, place.name, place.lat, place.lng, retryNonce]);
 
+  const osmWebsiteHref = normalizeHttpUrl(place.website);
+
   return (
     <div
-      className="fixed inset-0 z-[2000] flex justify-end bg-black/25"
+      className="fixed inset-0 z-[2000] flex items-end justify-center bg-black/30 sm:items-stretch sm:justify-end"
       role="presentation"
       onClick={onClose}
     >
       <aside
-        className="flex h-full w-full max-w-md flex-col border-l border-[var(--line)] bg-[var(--surface)] shadow-2xl"
+        className="flex max-h-[92vh] w-full max-w-md flex-col rounded-t-2xl border border-[var(--line)] bg-[var(--surface)] shadow-2xl sm:h-full sm:max-h-none sm:rounded-none sm:rounded-l-none sm:border-l sm:border-y-0 sm:border-r-0"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-start gap-3 border-b border-[var(--line)] px-4 py-3">
+        <header className="relative flex items-start gap-3 border-b border-[var(--line)] px-4 py-3 pt-5 sm:pt-3">
+          <span
+            className="absolute left-1/2 top-2 h-1 w-10 -translate-x-1/2 rounded-full bg-[var(--line)] sm:hidden"
+            aria-hidden
+          />
           <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)] text-[var(--accent)] ring-1 ring-[var(--line)]">
             <CategoryIcon category={place.categoryId} />
           </span>
           <div className="min-w-0 flex-1">
             <h2
               id={titleId}
-              className="truncate text-lg font-semibold text-[var(--ink)]"
+              className={`truncate text-lg font-semibold text-[var(--ink)] ${place.isUnnamed ? "italic" : ""}`}
             >
               {place.name}
             </h2>
             <p className="text-xs text-[var(--muted)]">
               {place.categoryLabel} · {formatDistance(place.distanceM)} · OSM
+              {place.isUnnamed ? " · unnamed" : ""}
             </p>
           </div>
           <button
             ref={closeRef}
             type="button"
-            className="rounded-md px-2 py-1 text-sm text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+            className="rounded-md px-2 py-1 text-sm text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
             onClick={onClose}
           >
             Close
           </button>
         </header>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+        <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-4">
           <section aria-labelledby="osm-section">
             <h3
               id="osm-section"
@@ -252,7 +261,11 @@ function PlaceDetailDrawerInner({
             <dl className="mt-2 space-y-2 text-sm">
               <Row label="Address" value={place.address} />
               <Row label="Hours" value={place.hours} />
-              <Row label="Website" value={place.website} link />
+              <Row
+                label="Website"
+                value={place.website}
+                href={osmWebsiteHref}
+              />
               <Row label="Phone" value={place.phone} />
               <Row
                 label="Coordinates"
@@ -269,9 +282,14 @@ function PlaceDetailDrawerInner({
               >
                 View on openstreetmap.org
               </a>
+              <CopyButton label="Copy name" value={place.name} />
               <CopyButton
                 label="Copy coords"
                 value={formatLatLng(place.lat, place.lng, 6)}
+              />
+              <CopyButton
+                label="Copy OSM id"
+                value={`${place.osmType}/${place.osmId}`}
               />
             </p>
           </section>
@@ -349,22 +367,26 @@ function Row({
   label,
   value,
   link,
+  href,
 }: {
   label: string;
   value?: string;
   link?: boolean;
+  /** Prefer over `value` when linking (normalized URL). */
+  href?: string;
 }) {
+  const linkHref = href ?? (link ? normalizeHttpUrl(value) : undefined);
   return (
     <div>
       <dt className="inline font-medium text-[var(--ink)]">{label}: </dt>
-      <dd className="inline text-[var(--muted)]">
+      <dd className="inline break-words text-[var(--muted)]">
         {value ? (
-          link ? (
+          linkHref ? (
             <a
-              href={value}
+              href={linkHref}
               target="_blank"
               rel="noreferrer"
-              className="text-[var(--accent)] underline-offset-2 hover:underline"
+              className="break-all text-[var(--accent)] underline-offset-2 hover:underline"
             >
               {value}
             </a>
@@ -372,7 +394,7 @@ function Row({
             value
           )
         ) : (
-          "Not tagged"
+          "Not tagged in OSM"
         )}
       </dd>
     </div>
@@ -395,6 +417,83 @@ function CopyButton({ label, value }: { label: string; value: string }) {
     >
       {copied ? "Copied" : label}
     </button>
+  );
+}
+
+function GoogleIdsBlock({ details }: { details: GooglePlaceDetails }) {
+  const resource = placesResourceName(details.placeId);
+  return (
+    <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/70 px-3 py-2">
+      <p className="text-sm font-medium text-[var(--ink)]">Google IDs</p>
+      <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+        From Places API (New) only — display / copy; never exported. No SerpAPI
+        or scrapers.
+      </p>
+      <ul className="mt-2 space-y-2 text-sm">
+        <IdCopyRow
+          label="place_id"
+          value={details.placeId}
+          hint="Primary Places API id (ChIJ…)"
+        />
+        {resource ? (
+          <IdCopyRow
+            label="resource name"
+            value={resource}
+            hint="places/… form used by the API"
+          />
+        ) : null}
+        {details.mapsCid ? (
+          <IdCopyRow
+            label="CID"
+            value={details.mapsCid}
+            hint="Parsed from googleMapsUri ?cid= when present"
+          />
+        ) : (
+          <li className="text-xs text-[var(--muted)]">
+            <span className="font-medium text-[var(--ink)]">CID: </span>
+            Not in this response
+            {details.googleMapsUri
+              ? " (Maps link has no ?cid=)"
+              : " (no googleMapsUri)"}
+          </li>
+        )}
+        <li className="text-xs text-[var(--muted)]">
+          <span className="font-medium text-[var(--ink)]">data_id: </span>
+          N/A from official Places API (New) — scrape-style{" "}
+          <code className="text-[10px]">0x…:0x…</code> ids are not returned
+          here.
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function IdCopyRow({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
+  return (
+    <li>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="min-w-0 flex-1">
+          <span className="text-xs font-medium text-[var(--ink)]">{label}</span>
+          {hint ? (
+            <span className="mt-0.5 block text-[11px] text-[var(--muted)]">
+              {hint}
+            </span>
+          ) : null}
+          <code className="mt-1 block break-all rounded bg-[var(--surface)] px-1.5 py-1 text-[11px] text-[var(--ink)] ring-1 ring-[var(--line)]">
+            {value}
+          </code>
+        </p>
+        <CopyButton label="Copy" value={value} />
+      </div>
+    </li>
   );
 }
 
@@ -502,6 +601,8 @@ function GoogleDetailsBlock({
               </a>
             ) : null}
           </div>
+
+          <GoogleIdsBlock details={details} />
 
           <dl className="space-y-2 text-sm">
             <Row label="Address" value={details.address} />

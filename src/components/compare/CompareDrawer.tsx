@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef } from "react";
 import { ExportBar } from "@/components/results/ExportBar";
-import { formatDistance } from "@/lib/places/format";
+import { formatDistance, normalizeHttpUrl } from "@/lib/places/format";
 import type { OsmPlace } from "@/lib/places/types";
 import { CategoryIcon } from "@/lib/search/category-icons";
 
@@ -178,8 +178,10 @@ export function CompareDrawer({ places, open, onClose, onRemove }: Props) {
                     </th>
                     {places.map((place) => {
                       const value = cellValue(place, row.key);
-                      const isLink =
-                        row.key === "website" && value.startsWith("http");
+                      const href =
+                        row.key === "website" && value !== "—"
+                          ? normalizeHttpUrl(value)
+                          : undefined;
                       return (
                         <td
                           key={`${place.id}-${row.key}`}
@@ -187,9 +189,9 @@ export function CompareDrawer({ places, open, onClose, onRemove }: Props) {
                             differs ? "font-medium" : ""
                           }`}
                         >
-                          {isLink ? (
+                          {href ? (
                             <a
-                              href={value}
+                              href={href}
                               target="_blank"
                               rel="noreferrer"
                               className="break-all text-[var(--accent)] underline-offset-2 hover:underline"
@@ -197,7 +199,11 @@ export function CompareDrawer({ places, open, onClose, onRemove }: Props) {
                               {value}
                             </a>
                           ) : (
-                            <span className="break-words">{value}</span>
+                            <span
+                              className={`break-words ${value === "—" ? "text-[var(--muted)]" : ""}`}
+                            >
+                              {value}
+                            </span>
                           )}
                         </td>
                       );
