@@ -1,18 +1,26 @@
 "use client";
 
 import {
+  MAX_AREA_SPAN_KM,
   PLACE_CATEGORIES,
+  SEARCH_MODES,
   SEARCH_RADII_KM,
   type PlaceCategoryId,
+  type SearchMode,
   type SearchRadiusKm,
 } from "@/lib/search/categories";
 
 type Props = {
   category: PlaceCategoryId;
+  searchMode: SearchMode;
   radiusKm: SearchRadiusKm;
   customKeyword: string;
+  areaLabel: string | null;
+  hasAreaBBox: boolean;
+  areaTooLarge: boolean;
   loading?: boolean;
   onCategoryChange: (id: PlaceCategoryId) => void;
+  onSearchModeChange: (mode: SearchMode) => void;
   onRadiusChange: (km: SearchRadiusKm) => void;
   onCustomKeywordChange: (value: string) => void;
   onSearch: () => void;
@@ -21,16 +29,26 @@ type Props = {
 
 export function SearchControls({
   category,
+  searchMode,
   radiusKm,
   customKeyword,
+  areaLabel,
+  hasAreaBBox,
+  areaTooLarge,
   loading,
   onCategoryChange,
+  onSearchModeChange,
   onRadiusChange,
   onCustomKeywordChange,
   onSearch,
   disabled,
 }: Props) {
   const customMissing = category === "custom" && !customKeyword.trim();
+  const areaBlocked =
+    searchMode === "area" && (!hasAreaBBox || areaTooLarge);
+  const searchDisabled = Boolean(
+    disabled || loading || customMissing || areaBlocked,
+  );
 
   return (
     <section aria-labelledby="search-heading" className="flex flex-col gap-3">
@@ -42,10 +60,47 @@ export function SearchControls({
           Search
         </h2>
         <p className="text-sm text-[var(--muted)]">
-          Find OpenStreetMap places around the map center. Tap a result for
-          Google hours, ratings, and reviews when configured.
+          Find OpenStreetMap places by radius around the map pin, or inside the
+          area you selected above. Tap a result for Google hours, ratings, and
+          reviews when configured.
         </p>
       </div>
+
+      <fieldset className="space-y-2">
+        <legend className="mb-1 text-sm font-medium text-[var(--ink)]">
+          Search by
+        </legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {SEARCH_MODES.map((mode) => (
+            <label
+              key={mode.id}
+              className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm ${
+                searchMode === mode.id
+                  ? "border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]"
+                  : "border-[var(--line)] bg-[var(--surface)]"
+              }`}
+            >
+              <input
+                type="radio"
+                name="search-mode"
+                className="mt-0.5"
+                checked={searchMode === mode.id}
+                onChange={() => onSearchModeChange(mode.id)}
+              />
+              <span>
+                <span className="font-medium text-[var(--ink)]">
+                  {mode.label}
+                </span>
+                <span className="mt-0.5 block text-xs text-[var(--muted)]">
+                  {mode.id === "radius"
+                    ? "Circle around the teal pin"
+                    : "Bounding box of the selected city/county/region"}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -71,28 +126,48 @@ export function SearchControls({
           </select>
         </div>
 
-        <div>
-          <label
-            htmlFor="radius"
-            className="mb-1 block text-sm font-medium text-[var(--ink)]"
-          >
-            Radius
-          </label>
-          <select
-            id="radius"
-            className="field"
-            value={radiusKm}
-            onChange={(e) =>
-              onRadiusChange(Number(e.target.value) as SearchRadiusKm)
-            }
-          >
-            {SEARCH_RADII_KM.map((km) => (
-              <option key={km} value={km}>
-                {km} km
-              </option>
-            ))}
-          </select>
-        </div>
+        {searchMode === "radius" ? (
+          <div>
+            <label
+              htmlFor="radius"
+              className="mb-1 block text-sm font-medium text-[var(--ink)]"
+            >
+              Radius
+            </label>
+            <select
+              id="radius"
+              className="field"
+              value={radiusKm}
+              onChange={(e) =>
+                onRadiusChange(Number(e.target.value) as SearchRadiusKm)
+              }
+            >
+              {SEARCH_RADII_KM.map((km) => (
+                <option key={km} value={km}>
+                  {km} km
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div>
+            <p className="mb-1 text-sm font-medium text-[var(--ink)]">
+              Selected area
+            </p>
+            <p
+              className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted)]"
+              role="status"
+            >
+              {!hasAreaBBox
+                ? "Pick a city, county, or region above (needs a map box from geocoding)."
+                : areaTooLarge
+                  ? `Area is too large for Overpass (max ~${MAX_AREA_SPAN_KM} km). Zoom into a smaller place or use radius.`
+                  : areaLabel
+                    ? areaLabel
+                    : "Area ready"}
+            </p>
+          </div>
+        )}
       </div>
 
       {category === "custom" && (
@@ -110,7 +185,7 @@ export function SearchControls({
             value={customKeyword}
             onChange={(e) => onCustomKeywordChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !disabled && !loading && !customMissing) {
+              if (e.key === "Enter" && !searchDisabled) {
                 e.preventDefault();
                 onSearch();
               }
@@ -124,10 +199,14 @@ export function SearchControls({
       <button
         type="button"
         className="btn-primary"
-        disabled={disabled || loading || customMissing}
+        disabled={searchDisabled}
         onClick={onSearch}
       >
-        {loading ? "Searching…" : "Search nearby"}
+        {loading
+          ? "Searching…"
+          : searchMode === "area"
+            ? "Search selected area"
+            : "Search nearby"}
       </button>
       <p className="text-xs text-[var(--muted)]">
         Source: OpenStreetMap via Overpass. Google details use the official

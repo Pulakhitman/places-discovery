@@ -39,4 +39,15 @@ describe("overpass query helpers", () => {
       }),
     ).toThrow(/Custom keyword/);
   });
+
+  it("builds an area bbox query from Nominatim south/north/west/east", () => {
+    const q = buildOverpassQuery({
+      mode: "area",
+      bbox: [23.7, 23.9, 90.3, 90.5],
+      category: "cafes",
+    });
+    expect(q).toContain("(23.7,90.3,23.9,90.5)");
+    expect(q).toContain('nwr["amenity"="cafe"]');
+    expect(q).not.toContain("around:");
+  });
 });

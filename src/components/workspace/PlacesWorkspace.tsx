@@ -16,7 +16,10 @@ import {
   type SearchState,
 } from "@/components/results/ResultsPanel";
 import { SearchControls } from "@/components/search/SearchControls";
-import { mapFocusFromSelection } from "@/lib/location/hierarchy";
+import {
+  deepestSelection,
+  mapFocusFromSelection,
+} from "@/lib/location/hierarchy";
 import type { LocationSelection, MapCenter } from "@/lib/location/types";
 import type { GoogleStatusResponse } from "@/lib/places/google-types";
 import {
@@ -38,7 +41,13 @@ import type {
   OsmPlace,
   PlacesSearchSuccess,
 } from "@/lib/places/types";
-import type { PlaceCategoryId, SearchRadiusKm } from "@/lib/search/categories";
+import {
+  isBBoxWithinSearchLimit,
+  isNominatimBBox,
+  type PlaceCategoryId,
+  type SearchMode,
+  type SearchRadiusKm,
+} from "@/lib/search/categories";
 import { buildMapPlaceholders } from "@/lib/search/placeholders";
 
 export function PlacesWorkspace() {
@@ -51,6 +60,9 @@ export function PlacesWorkspace() {
   );
   const [radiusKm, setRadiusKm] = useState<SearchRadiusKm>(
     DEFAULT_SEARCH_PREFS.radiusKm,
+  );
+  const [searchMode, setSearchMode] = useState<SearchMode>(
+    DEFAULT_SEARCH_PREFS.searchMode,
   );
   const [customKeyword, setCustomKeyword] = useState("");
   const [sort, setSort] = useState<PlaceSortId>(DEFAULT_SEARCH_PREFS.sort);
@@ -72,11 +84,32 @@ export function PlacesWorkspace() {
 
   const focus = useMemo(() => mapFocusFromSelection(selection), [selection]);
   const mapCenter = center ?? focus.center;
+  const selectedAreaBBox = useMemo(() => {
+    const box = focus.boundingBox;
+    return isNominatimBBox(box) ? box : null;
+  }, [focus.boundingBox]);
+  const areaTooLarge = Boolean(
+    selectedAreaBBox && !isBBoxWithinSearchLimit(selectedAreaBBox),
+  );
+  const areaLabel = useMemo(() => {
+    const deep = deepestSelection(selection);
+    if (!deep) {
+      return null;
+    }
+    if ("displayName" in deep && deep.displayName) {
+      return deep.displayName;
+    }
+    if ("name" in deep && deep.name) {
+      return deep.name;
+    }
+    return null;
+  }, [selection]);
 
   useEffect(() => {
     const prefs = loadSearchPrefs();
     setCategory(prefs.category);
     setRadiusKm(prefs.radiusKm);
+    setSearchMode(prefs.searchMode);
     setSort(prefs.sort);
     setPrefsReady(true);
   }, []);
@@ -85,8 +118,8 @@ export function PlacesWorkspace() {
     if (!prefsReady) {
       return;
     }
-    saveSearchPrefs({ category, radiusKm, sort });
-  }, [prefsReady, category, radiusKm, sort]);
+    saveSearchPrefs({ category, radiusKm, searchMode, sort });
+  }, [prefsReady, category, radiusKm, searchMode, sort]);
 
   const mapPlaceholders = useMemo(() => {
     if (!mapCenter) {
@@ -201,7 +234,11 @@ export function PlacesWorkspace() {
   }, []);
 
   const runSearch = useCallback(async () => {
-    if (!mapCenter) {
+    if (searchMode === "area") {
+      if (!selectedAreaBBox || areaTooLarge) {
+        return;
+      }
+    } else if (!mapCenter) {
       return;
     }
 
@@ -218,17 +255,31 @@ export function PlacesWorkspace() {
     setFilters(DEFAULT_RESULT_FILTERS);
 
     try {
+      const body =
+        searchMode === "area" && selectedAreaBBox
+          ? {
+              mode: "area" as const,
+              bbox: selectedAreaBBox,
+              lat: mapCenter?.lat,
+              lng: mapCenter?.lng,
+              category,
+              customKeyword:
+                category === "custom" ? customKeyword.trim() : undefined,
+            }
+          : {
+              mode: "radius" as const,
+              lat: mapCenter!.lat,
+              lng: mapCenter!.lng,
+              radiusKm,
+              category,
+              customKeyword:
+                category === "custom" ? customKeyword.trim() : undefined,
+            };
+
       const res = await fetch("/api/places/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lat: mapCenter.lat,
-          lng: mapCenter.lng,
-          radiusKm,
-          category,
-          customKeyword:
-            category === "custom" ? customKeyword.trim() : undefined,
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
 
@@ -297,7 +348,15 @@ export function PlacesWorkspace() {
         retryable: true,
       });
     }
-  }, [mapCenter, radiusKm, category, customKeyword]);
+  }, [
+    mapCenter,
+    radiusKm,
+    category,
+    customKeyword,
+    searchMode,
+    selectedAreaBBox,
+    areaTooLarge,
+  ]);
 
   const showTools = searchState.status === "ok" && places.length > 0;
 
@@ -320,6 +379,7 @@ export function PlacesWorkspace() {
           boundingBox={focus.boundingBox}
           zoom={focus.zoom}
           radiusKm={radiusKm}
+          searchMode={searchMode}
           places={showTools ? filteredPlaces : places}
           placeholders={mapPlaceholders}
           selectedPlaceId={selectedPlaceId}
@@ -337,14 +397,19 @@ export function PlacesWorkspace() {
         <hr className="border-[var(--line)]" />
         <SearchControls
           category={category}
+          searchMode={searchMode}
           radiusKm={radiusKm}
           customKeyword={customKeyword}
+          areaLabel={areaLabel}
+          hasAreaBBox={Boolean(selectedAreaBBox)}
+          areaTooLarge={areaTooLarge}
           loading={searchState.status === "loading"}
           onCategoryChange={setCategory}
+          onSearchModeChange={setSearchMode}
           onRadiusChange={setRadiusKm}
           onCustomKeywordChange={setCustomKeyword}
           onSearch={() => void runSearch()}
-          disabled={!mapCenter}
+          disabled={searchMode === "radius" ? !mapCenter : false}
         />
         {googleConfigured !== null && (
           <p

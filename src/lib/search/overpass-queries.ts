@@ -1,7 +1,11 @@
-import type { PlaceCategoryId } from "./categories";
-import { PLACE_CATEGORIES, SEARCH_RADII_KM } from "./categories";
+import type { NominatimBBox, PlaceCategoryId } from "./categories";
+import {
+  isNominatimBBox,
+  PLACE_CATEGORIES,
+  SEARCH_RADII_KM,
+} from "./categories";
 
-/** Overpass tag filters per category (around center; radius applied in query). */
+/** Overpass tag filters per category (spatial filter applied separately). */
 const CATEGORY_FILTERS: Record<
   Exclude<PlaceCategoryId, "custom">,
   string[]
@@ -29,38 +33,58 @@ export function categoryLabel(id: PlaceCategoryId): string {
 }
 
 /**
- * Build an Overpass QL query for nearby places.
- * Radius is in meters. Custom uses name/amenity regex from keyword.
+ * Nominatim bbox [south, north, west, east] → Overpass `(south,west,north,east)`.
  */
-export function buildOverpassQuery(params: {
-  lat: number;
-  lng: number;
-  radiusM: number;
-  category: PlaceCategoryId;
-  customKeyword?: string;
-}): string {
-  const { lat, lng, radiusM, category } = params;
-  const around = `(around:${Math.round(radiusM)},${lat},${lng})`;
+export function overpassBBoxFilter(bbox: NominatimBBox): string {
+  if (!isNominatimBBox(bbox)) {
+    throw new Error("Invalid bounding box.");
+  }
+  const [south, north, west, east] = bbox;
+  return `(${south},${west},${north},${east})`;
+}
 
-  let filters: string[];
+function categoryFilters(
+  category: PlaceCategoryId,
+  customKeyword?: string,
+): string[] {
   if (category === "custom") {
-    const kw = (params.customKeyword ?? "").trim();
+    const kw = (customKeyword ?? "").trim();
     if (!kw) {
       throw new Error("Custom keyword is required for custom category.");
     }
     const escaped = kw.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-    filters = [
+    return [
       `["name"~"${escaped}",i]`,
       `["amenity"~"${escaped}",i]`,
       `["shop"~"${escaped}",i]`,
       `["leisure"~"${escaped}",i]`,
     ];
-  } else {
-    filters = CATEGORY_FILTERS[category];
   }
+  return CATEGORY_FILTERS[category];
+}
+
+export type BuildOverpassQueryParams = {
+  category: PlaceCategoryId;
+  customKeyword?: string;
+} & (
+  | { mode?: "radius"; lat: number; lng: number; radiusM: number; bbox?: never }
+  | { mode: "area"; bbox: NominatimBBox; lat?: never; lng?: never; radiusM?: never }
+);
+
+/**
+ * Build an Overpass QL query for nearby places.
+ * Mode `radius`: around a center. Mode `area`: Nominatim bounding box.
+ */
+export function buildOverpassQuery(params: BuildOverpassQueryParams): string {
+  const spatial =
+    params.mode === "area"
+      ? overpassBBoxFilter(params.bbox)
+      : `(around:${Math.round(params.radiusM)},${params.lat},${params.lng})`;
+
+  const filters = categoryFilters(params.category, params.customKeyword);
 
   // `nwr` matches nodes, ways, and relations in one clause (lighter than 3×).
-  const clauses = filters.map((f) => `nwr${f}${around};`).join("\n  ");
+  const clauses = filters.map((f) => `nwr${f}${spatial};`).join("\n  ");
 
   return `
 [out:json][timeout:60];

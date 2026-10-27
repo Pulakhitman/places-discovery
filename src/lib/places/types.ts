@@ -1,4 +1,9 @@
-import type { PlaceCategoryId, SearchRadiusKm } from "@/lib/search/categories";
+import type {
+  NominatimBBox,
+  PlaceCategoryId,
+  SearchMode,
+  SearchRadiusKm,
+} from "@/lib/search/categories";
 
 export type PlaceSource = "osm";
 
@@ -41,7 +46,11 @@ export type PlacesSearchSuccess = {
   meta: {
     category: PlaceCategoryId;
     categoryLabel: string;
-    radiusKm: SearchRadiusKm;
+    mode: SearchMode;
+    /** Set for radius mode; null when searching a selected area. */
+    radiusKm: SearchRadiusKm | null;
+    /** Nominatim [south, north, west, east] when mode is area. */
+    bbox: NominatimBBox | null;
     center: { lat: number; lng: number };
     searchedAt: string;
     source: "overpass";

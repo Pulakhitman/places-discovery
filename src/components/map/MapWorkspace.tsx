@@ -5,6 +5,7 @@ import {
   Circle,
   MapContainer,
   Marker,
+  Rectangle,
   TileLayer,
   Tooltip,
   useMap,
@@ -18,7 +19,8 @@ import {
   type CategoryMarkerVariant,
 } from "@/lib/search/category-marker-html";
 import type { MapPlaceholderPin } from "@/lib/search/placeholders";
-import type { PlaceCategoryId } from "@/lib/search/categories";
+import type { PlaceCategoryId, SearchMode } from "@/lib/search/categories";
+import { isNominatimBBox } from "@/lib/search/categories";
 
 import "leaflet/dist/leaflet.css";
 
@@ -64,6 +66,7 @@ function searchAreaBounds(center: MapCenter, radiusKm: number): L.LatLngBounds {
 type Props = {
   center: MapCenter | null;
   radiusKm: number;
+  searchMode?: SearchMode;
   boundingBox?: [number, number, number, number];
   zoom?: number;
   places?: OsmPlace[];
@@ -248,6 +251,7 @@ function MapToolbarBridge({
 export function MapWorkspace({
   center,
   radiusKm,
+  searchMode = "radius",
   boundingBox,
   zoom,
   places = [],
@@ -261,6 +265,17 @@ export function MapWorkspace({
   const fitSearchAreaRef = useRef<(() => void) | null>(null);
   const activeCenter = center ?? DEFAULT_CENTER;
   const radiusMeters = useMemo(() => radiusKm * 1000, [radiusKm]);
+  const areaBounds = useMemo(() => {
+    if (!isNominatimBBox(boundingBox)) {
+      return null;
+    }
+    const [south, north, west, east] = boundingBox;
+    return [
+      [south, west] as [number, number],
+      [north, east] as [number, number],
+    ];
+  }, [boundingBox]);
+  const showAreaRect = searchMode === "area" && areaBounds !== null;
   const showPlaceholders = places.length === 0 && placeholders.length > 0;
   const selectedPlace = useMemo(
     () => places.find((p) => p.id === selectedPlaceId) ?? null,
@@ -307,17 +322,29 @@ export function MapWorkspace({
           onReady={handleToolbarReady}
         />
         <ZoomControlBottomRight />
-        <Circle
-          center={[activeCenter.lat, activeCenter.lng]}
-          radius={radiusMeters}
-          pathOptions={{
-            color: "#0f766e",
-            fillColor: "#0d9488",
-            fillOpacity: 0.1,
-            weight: 2.5,
-            dashArray: undefined,
-          }}
-        />
+        {showAreaRect ? (
+          <Rectangle
+            bounds={areaBounds}
+            pathOptions={{
+              color: "#0f766e",
+              fillColor: "#0d9488",
+              fillOpacity: 0.1,
+              weight: 2.5,
+            }}
+          />
+        ) : (
+          <Circle
+            center={[activeCenter.lat, activeCenter.lng]}
+            radius={radiusMeters}
+            pathOptions={{
+              color: "#0f766e",
+              fillColor: "#0d9488",
+              fillOpacity: 0.1,
+              weight: 2.5,
+              dashArray: undefined,
+            }}
+          />
+        )}
         <Marker
           position={[activeCenter.lat, activeCenter.lng]}
           draggable
@@ -443,7 +470,7 @@ export function MapWorkspace({
         {showPlaceholders ? (
           <>
             Dashed icons = sample {placeholders[0]?.category ?? "places"} · teal
-            pin = center · {radiusKm} km radius
+            pin = center · {searchMode === "area" ? "selected area" : `${radiusKm} km radius`}
           </>
         ) : places.length > 0 ? (
           <>
@@ -452,7 +479,7 @@ export function MapWorkspace({
           </>
         ) : (
           <>
-            Teal pin = search center (drag or tap map) · {radiusKm} km radius
+            Teal pin = search center (drag or tap map) · {searchMode === "area" ? "selected area box" : `${radiusKm} km radius`}
           </>
         )}
       </div>

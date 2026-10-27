@@ -121,7 +121,11 @@ export function ResultsPanel({
           id="results-heading"
           className="text-sm font-semibold tracking-wide text-[var(--ink)]"
         >
-          {meta.categoryLabel} · {meta.radiusKm} km · {count} place
+          {meta.categoryLabel} ·{" "}
+          {meta.mode === "area"
+            ? "selected area"
+            : `${meta.radiusKm ?? "?"} km`}{" "}
+          · {count} place
           {count === 1 ? "" : "s"}
         </h2>
         <p className="text-xs text-[var(--muted)]">

@@ -3,7 +3,7 @@ import {
   type OverpassElement,
 } from "@/lib/places/parse-overpass";
 import type { OsmPlace } from "@/lib/places/types";
-import type { PlaceCategoryId } from "@/lib/search/categories";
+import type { NominatimBBox, PlaceCategoryId } from "@/lib/search/categories";
 import { buildOverpassQuery } from "@/lib/search/overpass-queries";
 
 export type OverpassErrorKind = "timeout" | "rate_limited" | "http" | "parse";
@@ -42,13 +42,13 @@ function userAgent(): string {
 }
 
 export type OverpassSearchParams = {
-  lat: number;
-  lng: number;
-  radiusM: number;
   category: PlaceCategoryId;
   customKeyword?: string;
   signal?: AbortSignal;
-};
+} & (
+  | { mode?: "radius"; lat: number; lng: number; radiusM: number; bbox?: never }
+  | { mode: "area"; bbox: NominatimBBox; lat: number; lng: number; radiusM?: never }
+);
 
 type OverpassJson = {
   elements?: OverpassElement[];
@@ -61,13 +61,21 @@ type OverpassJson = {
 export async function searchOverpass(
   params: OverpassSearchParams,
 ): Promise<OsmPlace[]> {
-  const query = buildOverpassQuery({
-    lat: params.lat,
-    lng: params.lng,
-    radiusM: params.radiusM,
-    category: params.category,
-    customKeyword: params.customKeyword,
-  });
+  const query =
+    params.mode === "area"
+      ? buildOverpassQuery({
+          mode: "area",
+          bbox: params.bbox,
+          category: params.category,
+          customKeyword: params.customKeyword,
+        })
+      : buildOverpassQuery({
+          lat: params.lat,
+          lng: params.lng,
+          radiusM: params.radiusM,
+          category: params.category,
+          customKeyword: params.customKeyword,
+        });
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs());

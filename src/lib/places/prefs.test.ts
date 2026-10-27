@@ -67,11 +67,13 @@ describe("search prefs", () => {
       saveSearchPrefs({
         category: "cafes",
         radiusKm: 2,
+        searchMode: "area",
         sort: "name",
       });
       expect(loadSearchPrefs()).toEqual({
         category: "cafes",
         radiusKm: 2,
+        searchMode: "area",
         sort: "name",
       });
     });

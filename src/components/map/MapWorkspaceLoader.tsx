@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import type { MapCenter } from "@/lib/location/types";
 import type { OsmPlace } from "@/lib/places/types";
+import type { SearchMode } from "@/lib/search/categories";
 import type { MapPlaceholderPin } from "@/lib/search/placeholders";
 
 const MapWorkspace = dynamic(
@@ -23,6 +24,7 @@ const MapWorkspace = dynamic(
 type Props = {
   center: MapCenter | null;
   radiusKm: number;
+  searchMode?: SearchMode;
   boundingBox?: [number, number, number, number];
   zoom?: number;
   places?: OsmPlace[];
