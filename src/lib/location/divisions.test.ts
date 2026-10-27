@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
+import {
+  bboxFromCenter,
+  DIVISION_BBOX_RADIUS_KM,
+} from "./bbox";
 import { enrichGeocodeBoundingBox } from "./enrich-bbox";
-import { getCountiesForRegion, toGeocodeResult } from "./divisions";
+import {
+  getCitiesForSelection,
+  getCountiesForRegion,
+  toGeocodeResult,
+} from "./divisions";
 
 describe("getCountiesForRegion", () => {
   it("lists California counties from CSC short state name", () => {
@@ -33,6 +41,51 @@ describe("getCountiesForRegion", () => {
       lng: -100,
     });
     expect(counties.length).toBeGreaterThan(50);
+  });
+});
+
+describe("getCitiesForSelection county filter", () => {
+  const caRegion = {
+    displayName: "California",
+    adminCode: "CA",
+    lat: 36.7,
+    lng: -119.4,
+  };
+
+  it("returns the full state list when no county is selected", () => {
+    const cities = getCitiesForSelection("US", caRegion);
+    expect(cities.length).toBeGreaterThan(500);
+    expect(cities.some((c) => c.name === "Los Angeles")).toBe(true);
+    expect(cities.some((c) => c.name === "San Francisco")).toBe(true);
+  });
+
+  it("returns no cities while county bounds are still the region placeholder", () => {
+    const cities = getCitiesForSelection("US", caRegion, {
+      displayName: "Los Angeles County",
+      lat: caRegion.lat,
+      lng: caRegion.lng,
+      boundingBox: bboxFromCenter(
+        caRegion.lat,
+        caRegion.lng,
+        DIVISION_BBOX_RADIUS_KM.county,
+      ),
+    });
+    expect(cities).toEqual([]);
+  });
+
+  it("keeps LA-area cities and drops SF when LA County bbox is set", () => {
+    const cities = getCitiesForSelection("US", caRegion, {
+      displayName: "Los Angeles County",
+      lat: 34.05,
+      lng: -118.24,
+      // Approx LA County from Nominatim
+      boundingBox: [32.75, 34.82, -118.95, -117.65],
+    });
+    expect(cities.length).toBeGreaterThan(10);
+    expect(cities.length).toBeLessThan(400);
+    expect(cities.some((c) => c.name === "Los Angeles")).toBe(true);
+    expect(cities.some((c) => c.name === "San Francisco")).toBe(false);
+    expect(cities.some((c) => c.name === "Fresno")).toBe(false);
   });
 });
 

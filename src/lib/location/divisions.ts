@@ -1,6 +1,11 @@
 import { City, State } from "country-state-city";
 import { getCountyByState } from "@nickgraffis/us-counties";
-import { ensureBoundingBox, type DivisionLevel } from "./bbox";
+import {
+  countyBoundsAreReliable,
+  ensureBoundingBox,
+  pointInNominatimBBox,
+  type DivisionLevel,
+} from "./bbox";
 import type { GeocodeResult } from "./types";
 
 export type DivisionOption = {
@@ -122,14 +127,18 @@ export function hasStaticCountyList(countryCode: string): boolean {
 
 export function getCitiesForSelection(
   countryCode: string,
-  region?: Pick<GeocodeResult, "adminCode"> | null,
+  region?: Pick<GeocodeResult, "adminCode" | "lat" | "lng"> | null,
+  county?: Pick<
+    GeocodeResult,
+    "lat" | "lng" | "boundingBox" | "displayName"
+  > | null,
 ): DivisionOption[] {
   const cc = countryCode.toUpperCase();
   const raw = region?.adminCode
     ? City.getCitiesOfState(cc, region.adminCode)
     : City.getCitiesOfCountry(cc);
 
-  return (raw ?? [])
+  const options = (raw ?? [])
     .map((c) => ({
       id: `city:${c.countryCode}:${c.stateCode ?? ""}:${c.name}`,
       name: c.name,
@@ -139,6 +148,38 @@ export function getCitiesForSelection(
       subtitle: c.stateCode || undefined,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (!county) {
+    return options;
+  }
+
+  // County selected but still on the region-center placeholder — wait for
+  // Nominatim enrich rather than showing the whole state.
+  if (!countyBoundsAreReliable(county, region)) {
+    return [];
+  }
+
+  const box = county.boundingBox;
+  if (!box) {
+    return [];
+  }
+
+  return options.filter((city) =>
+    pointInNominatimBBox(city.lat, city.lng, box),
+  );
+}
+
+/** True when a selected city still lies inside the selected county box. */
+export function cityBelongsToCounty(
+  city: Pick<GeocodeResult, "lat" | "lng">,
+  county: Pick<GeocodeResult, "lat" | "lng" | "boundingBox">,
+  region?: Pick<GeocodeResult, "lat" | "lng"> | null,
+): boolean {
+  if (!countyBoundsAreReliable(county, region) || !county.boundingBox) {
+    // Bounds not ready yet — keep the city until we can validate.
+    return true;
+  }
+  return pointInNominatimBBox(city.lat, city.lng, county.boundingBox);
 }
 
 export function filterDivisions(

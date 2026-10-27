@@ -50,3 +50,49 @@ export function ensureBoundingBox(
     ),
   };
 }
+
+/** True when lat/lng lies inside a Nominatim-order bbox [south, north, west, east]. */
+export function pointInNominatimBBox(
+  lat: number,
+  lng: number,
+  bbox: NominatimBBox,
+): boolean {
+  const [south, north, west, east] = bbox;
+  return lat >= south && lat <= north && lng >= west && lng <= east;
+}
+
+/**
+ * US static counties start as the parent region center + a synthetic box until
+ * Nominatim enrich returns a real county polygon. Those placeholders must not
+ * filter the city list (every county would show the same state-center cities).
+ */
+export function countyBoundsAreReliable(
+  county: Pick<GeocodeResult, "lat" | "lng" | "boundingBox">,
+  region?: Pick<GeocodeResult, "lat" | "lng"> | null,
+): boolean {
+  if (!isNominatimBBox(county.boundingBox)) {
+    return false;
+  }
+  if (
+    region &&
+    Number.isFinite(region.lat) &&
+    Number.isFinite(region.lng) &&
+    Math.abs(county.lat - region.lat) < 1e-4 &&
+    Math.abs(county.lng - region.lng) < 1e-4
+  ) {
+    const synthetic = bboxFromCenter(
+      region.lat,
+      region.lng,
+      DIVISION_BBOX_RADIUS_KM.county,
+    );
+    if (
+      county.boundingBox[0] === synthetic[0] &&
+      county.boundingBox[1] === synthetic[1] &&
+      county.boundingBox[2] === synthetic[2] &&
+      county.boundingBox[3] === synthetic[3]
+    ) {
+      return false;
+    }
+  }
+  return true;
+}

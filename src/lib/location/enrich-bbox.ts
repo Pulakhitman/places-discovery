@@ -14,13 +14,20 @@ export async function enrichGeocodeBoundingBox(params: {
   result: GeocodeResult;
   level: DivisionLevel;
   countryCode?: string;
+  /** Parent labels (county, region) to bias Nominatim toward the right place. */
+  parentContext?: string[];
   signal?: AbortSignal;
 }): Promise<GeocodeResult> {
   const fallback = ensureBoundingBox(params.result, params.level);
-  const q = params.result.displayName?.trim();
-  if (!q) {
+  const baseName = params.result.displayName?.trim();
+  if (!baseName) {
     return fallback;
   }
+
+  const parents = (params.parentContext ?? [])
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const q = parents.length > 0 ? `${baseName}, ${parents.join(", ")}` : baseName;
 
   const search = new URLSearchParams({ q });
   if (params.countryCode) {

@@ -4,10 +4,12 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { filterCountries, getAllCountries } from "@/lib/location/countries";
 import {
   bboxFromCenter,
+  countyBoundsAreReliable,
   DIVISION_BBOX_RADIUS_KM,
   ensureBoundingBox,
 } from "@/lib/location/bbox";
 import {
+  cityBelongsToCounty,
   filterDivisions,
   getCitiesForSelection,
   getCountiesForRegion,
@@ -19,6 +21,7 @@ import {
 import { enrichGeocodeBoundingBox } from "@/lib/location/enrich-bbox";
 import {
   breadcrumbLabels,
+  clearGeocodeLevel,
   patchCountry,
   patchGeocodeLevel,
   selectGeocodeLevel,
@@ -85,10 +88,44 @@ export function LocationHierarchy({ selection, onChange }: Props) {
     if (!selection.country) {
       return [];
     }
-    return getCitiesForSelection(selection.country.code, selection.region);
-  }, [selection.country, selection.region]);
+    return getCitiesForSelection(
+      selection.country.code,
+      selection.region,
+      selection.county,
+    );
+  }, [selection.country, selection.region, selection.county]);
+
+  const countyCitiesPending = Boolean(
+    selection.county &&
+      !countyBoundsAreReliable(selection.county, selection.region),
+  );
+
+  const nonUsCityParentContext = useMemo(
+    () =>
+      [selection.county?.displayName, selection.region?.displayName].filter(
+        (v): v is string => Boolean(v),
+      ),
+    [selection.county?.displayName, selection.region?.displayName],
+  );
 
   const crumbs = breadcrumbLabels(selection);
+
+  // Drop a city that falls outside the county once Nominatim county bounds arrive.
+  useEffect(() => {
+    const { city, county, region } = selection;
+    if (!city || !county) {
+      return;
+    }
+    if (cityBelongsToCounty(city, county, region)) {
+      return;
+    }
+    commit(clearGeocodeLevel(selectionRef.current, "city"));
+  }, [
+    selection.city,
+    selection.county,
+    selection.region,
+    commit,
+  ]);
 
   const selectDivision = (
     level: "region" | "county" | "city",
@@ -98,10 +135,22 @@ export function LocationHierarchy({ selection, onChange }: Props) {
     const base = selectionRef.current;
     commit(selectGeocodeLevel(base, level, immediate));
     const countryCode = base.country?.code;
+    const parentContext: string[] = [];
+    if (level === "city") {
+      if (base.county?.displayName) {
+        parentContext.push(base.county.displayName);
+      }
+      if (base.region?.displayName) {
+        parentContext.push(base.region.displayName);
+      }
+    } else if (level === "county" && base.region?.displayName) {
+      parentContext.push(base.region.displayName);
+    }
     void enrichGeocodeBoundingBox({
       result: immediate,
       level,
       countryCode,
+      parentContext,
     }).then((enriched) => {
       if (!enriched.boundingBox) {
         return;
@@ -289,23 +338,54 @@ export function LocationHierarchy({ selection, onChange }: Props) {
         />
       )}
 
-      <StaticDivisionField
-        key={`city:${selection.country?.code ?? ""}:${selection.region?.id ?? ""}`}
-        id="city"
-        label="City"
-        options={cities}
-        selected={selection.city}
-        disabled={!selection.country}
-        disabledHint="Select a country first"
-        emptyHint={
-          selection.region
-            ? "No cities for this region in the local list"
-            : "No cities found — pick a region first for a shorter list"
-        }
-        onSelect={(opt) => selectDivision("city", opt)}
-        onSkip={() => commit(skipLevel(selectionRef.current, "city"))}
-        onClear={() => commit(skipLevel(selectionRef.current, "city"))}
-      />
+      {selection.country &&
+      !hasStaticCountyList(selection.country.code) &&
+      selection.county ? (
+        <NominatimDivisionField
+          key={`city-search:${selection.country.code}:${selection.county.id}`}
+          id="city"
+          label="City"
+          level="city"
+          country={selection.country}
+          selected={selection.city}
+          disabled={!selection.country}
+          parentContext={nonUsCityParentContext}
+          note="Search cities inside the selected county (Nominatim)."
+          onSelect={(result) =>
+            commit(
+              selectGeocodeLevel(
+                selectionRef.current,
+                "city",
+                ensureBoundingBox(result, "city"),
+              ),
+            )
+          }
+          onSkip={() => commit(skipLevel(selectionRef.current, "city"))}
+          onClear={() => commit(skipLevel(selectionRef.current, "city"))}
+        />
+      ) : (
+        <StaticDivisionField
+          key={`city:${selection.country?.code ?? ""}:${selection.region?.id ?? ""}:${selection.county?.id ?? ""}`}
+          id="city"
+          label="City"
+          options={cities}
+          selected={selection.city}
+          disabled={!selection.country}
+          disabledHint="Select a country first"
+          emptyHint={
+            selection.county
+              ? countyCitiesPending
+                ? "Locating county — city list updates when the map box is ready"
+                : "No cities in this county in the local list"
+              : selection.region
+                ? "No cities for this region in the local list"
+                : "No cities found — pick a region first for a shorter list"
+          }
+          onSelect={(opt) => selectDivision("city", opt)}
+          onSkip={() => commit(skipLevel(selectionRef.current, "city"))}
+          onClear={() => commit(skipLevel(selectionRef.current, "city"))}
+        />
+      )}
     </section>
   );
 }
@@ -618,17 +698,20 @@ function NominatimDivisionField({
   selected,
   disabled,
   note,
+  parentContext = [],
   onSelect,
   onSkip,
   onClear,
 }: {
   id: string;
   label: string;
-  level: "county";
+  level: "county" | "city";
   country?: CountryOption;
   selected?: GeocodeResult;
   disabled?: boolean;
   note: string;
+  /** Parent area names appended to the Nominatim query (county, region). */
+  parentContext?: string[];
   onSelect: (result: GeocodeResult) => void;
   onSkip: () => void;
   onClear: () => void;
@@ -651,10 +734,14 @@ function NominatimDivisionField({
         return;
       }
 
+      const parents = parentContext.map((p) => p.trim()).filter(Boolean);
+      const biasedQuery =
+        parents.length > 0 ? `${q.trim()}, ${parents.join(", ")}` : q.trim();
+
       setState({ status: "loading" });
       try {
         const params = new URLSearchParams({
-          q,
+          q: biasedQuery,
           country: country.code,
           level,
         });
@@ -691,7 +778,18 @@ function NominatimDivisionField({
           return;
         }
 
-        const results = data.results ?? [];
+        let results = data.results ?? [];
+        // Prefer hits whose label mentions the county/region parent when present.
+        if (parents.length > 0 && results.length > 1) {
+          const parentNeedle = parents[0]!.toLowerCase();
+          const narrowed = results.filter((r) =>
+            (r.displayName || "").toLowerCase().includes(parentNeedle),
+          );
+          if (narrowed.length > 0) {
+            results = narrowed;
+          }
+        }
+
         if (results.length === 0) {
           setState({ status: "empty", query: q });
           return;
@@ -710,7 +808,7 @@ function NominatimDivisionField({
         });
       }
     },
-    [country, level],
+    [country, level, parentContext],
   );
 
   return (
@@ -761,7 +859,11 @@ function NominatimDivisionField({
             autoComplete="off"
             disabled={disabled}
             placeholder={
-              disabled ? "Select a country first" : "Search county…"
+              disabled
+                ? "Select a country first"
+                : level === "city"
+                  ? "Search city…"
+                  : "Search county…"
             }
             value={query}
             onChange={(e) => {

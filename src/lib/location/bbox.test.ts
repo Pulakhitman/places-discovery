@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { isNominatimBBox } from "@/lib/search/categories";
-import { bboxFromCenter, ensureBoundingBox } from "./bbox";
+import {
+  bboxFromCenter,
+  countyBoundsAreReliable,
+  DIVISION_BBOX_RADIUS_KM,
+  ensureBoundingBox,
+  pointInNominatimBBox,
+} from "./bbox";
 
 describe("location bbox helpers", () => {
   it("builds a valid Nominatim-order box around a center", () => {
@@ -38,5 +44,36 @@ describe("location bbox helpers", () => {
       "city",
     );
     expect(enriched.boundingBox).toEqual(existing);
+  });
+
+  it("detects points inside a Nominatim bbox", () => {
+    const box: [number, number, number, number] = [33.6, 34.4, -118.7, -118.1];
+    expect(pointInNominatimBBox(34.05, -118.24, box)).toBe(true);
+    expect(pointInNominatimBBox(37.77, -122.42, box)).toBe(false);
+  });
+
+  it("rejects synthetic county bounds that still sit on the region center", () => {
+    const region = { lat: 36.7, lng: -119.4 };
+    const synthetic = bboxFromCenter(
+      region.lat,
+      region.lng,
+      DIVISION_BBOX_RADIUS_KM.county,
+    );
+    expect(
+      countyBoundsAreReliable(
+        { lat: region.lat, lng: region.lng, boundingBox: synthetic },
+        region,
+      ),
+    ).toBe(false);
+    expect(
+      countyBoundsAreReliable(
+        {
+          lat: 34.05,
+          lng: -118.24,
+          boundingBox: [33.6, 34.4, -118.7, -118.1],
+        },
+        region,
+      ),
+    ).toBe(true);
   });
 });
