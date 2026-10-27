@@ -71,6 +71,43 @@ describe("mapGooglePlaceDetails", () => {
     });
   });
 
+  it("maps official reviewSummary verbatim", () => {
+    const details = mapGooglePlaceDetails({
+      id: "ChIJsum",
+      displayName: { text: "Park" },
+      location: { latitude: 1, longitude: 2 },
+      reviewSummary: {
+        text: { text: "People say this park is shady and quiet." },
+        disclosureText: { text: "Summarized with Gemini" },
+      },
+    });
+    expect(details?.reviewSummary).toEqual({
+      text: "People say this park is shady and quiet.",
+      disclosureText: "Summarized with Gemini",
+    });
+  });
+
+  it("details field mask requests reviewSummary", async () => {
+    vi.stubEnv("GOOGLE_MAPS_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: "ChIJ2",
+        displayName: { text: "Cafe Roma" },
+        location: { latitude: 1, longitude: 2 },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await getGooglePlaceDetails("ChIJ2");
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Record<
+      string,
+      string
+    >;
+    expect(headers["X-Goog-FieldMask"]).toContain("reviewSummary");
+    expect(headers["X-Goog-FieldMask"]).toContain("reviews");
+  });
+
   it("returns null when required fields are missing", () => {
     expect(mapGooglePlaceDetails({ displayName: { text: "X" } })).toBeNull();
   });

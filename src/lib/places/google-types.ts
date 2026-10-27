@@ -17,6 +17,13 @@ export type GooglePlaceReview = {
   visitDateYear?: number;
 };
 
+/** Official Places `reviewSummary` — show verbatim; never paraphrase. */
+export type GoogleReviewSummary = {
+  text: string;
+  /** Google disclosure e.g. “Summarized with Gemini”. */
+  disclosureText?: string;
+};
+
 export type GooglePlacePhoto = {
   /** Resource name e.g. places/ChIJ…/photos/… */
   name: string;
@@ -39,6 +46,8 @@ export type GooglePlaceDetails = {
   rating?: number;
   userRatingCount?: number;
   reviews: GooglePlaceReview[];
+  /** Official AI review summary from Place Details (not app-written). */
+  reviewSummary?: GoogleReviewSummary;
   photos: GooglePlacePhoto[];
   primaryType?: string;
   /** Prefer “Google Maps” for review blocks. */

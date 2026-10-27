@@ -1,31 +1,31 @@
 # Reviews plan (official Places API only)
 
-**Status:** Refined by [Plan reviews official API](bc-11e2346e-d1c3-5a9f-804f-8b1526844410); light UX on `cursor/coverage-reviews-plan-e515`
+**Status:** Phase 1 on `main`; Phase 2+ on `cursor/reviews-phase-2-e515`
 **Policy:** No scraping. Official Places API (New) only.
 
 ## Phases
-1. Full review fields + attribution + matched Google name; reviews only on Details mask
-2. Official `reviewSummary` on same Details call (verbatim); never app-written summary
-3. Session placeId reuse; slim Text Search match mask; do not cache review JSON
-4. Match confidence (name/distance); confirm weak matches before Details
-5. Local skim/filter of the same five reviews
+1. Full review fields + attribution + matched Google name; reviews only on Details mask — **done**
+2. Official `reviewSummary` on same Details call (verbatim); never app-written summary — **done (this PR)**
+3. Session placeId reuse; slim Text Search match mask; do not cache review JSON — **done (this PR)**
+4. Match confidence (name/distance); confirm weak matches before Details — **done (Phase 1)**
+5. Local skim/filter of the same five reviews — **done (this PR)**
 
 ## Refuse
 Scraping; fake pagination; reviews on search masks; prefetch-all; persisting review text; paraphrase
 
 ## Next
-Implement Phase 1 when requested.
-
-## Gaps (from planner)
-- Author uri/avatar; per-review Maps + flagContentUri; originalText; visitDate
-- reviewSummary not requested; match first-hit without name/distance check
-- Text Search match bills Enterprise rating fields redundantly
+Polish / monitoring only unless Google adds new official review fields.
 
 ## Cost shape
-Keep reviews off Nearby/Text. One Atmosphere Details call beats splitting hours vs reviews. Phase 3 slim match to id/name/location.
-## Phase 1 implemented (cursor/main-stack-reviews-e515)
+Keep reviews off Nearby/Text. One Atmosphere Details call for hours + reviews + `reviewSummary`. Session `placeId` skips repeat Text Search. In-memory Details cache stores metadata only (empty `reviews`, no `reviewSummary`).
+
+## Phase 1 (merged via #3)
 - Full review fields (author/avatar/links/report/visitDate/originalText)
 - Match confidence + weak-match confirm before photos/reviews
-- In-memory Place Details TTL cache (`GOOGLE_PLACES_DETAILS_CACHE_TTL_MS`)
-- Slim Text Search match mask; Google Maps attribution; photo grid polish
-- Google remains display-only — never exported
+- Slim Text Search match mask; Google Maps attribution
+
+## Phase 2+ (this branch)
+- `reviewSummary` on Details field mask; UI shows Google text + disclosure verbatim
+- `sessionStorage` placeId + match metadata reuse (never review bodies)
+- Details cache strips review JSON / summary on write
+- Local skim: min stars + sort among the same ≤5 reviews

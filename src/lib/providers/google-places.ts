@@ -1,12 +1,10 @@
-import {
-  getCachedGoogleDetails,
-  setCachedGoogleDetails,
-} from "@/lib/places/google-details-cache";
+import { setCachedGoogleDetails } from "@/lib/places/google-details-cache";
 import { scoreGoogleMatch, type GoogleMatchInfo } from "@/lib/places/google-match";
 import type {
   GooglePlaceDetails,
   GooglePlacePhoto,
   GooglePlaceReview,
+  GoogleReviewSummary,
 } from "@/lib/places/google-types";
 import type { PlaceCategoryId } from "@/lib/search/categories";
 import { googleIncludedTypes } from "@/lib/search/google-types-map";
@@ -90,6 +88,10 @@ type GooglePlaceRaw = {
     widthPx?: number;
     heightPx?: number;
   }>;
+  reviewSummary?: {
+    text?: { text?: string; languageCode?: string };
+    disclosureText?: { text?: string; languageCode?: string };
+  };
 };
 
 const NEARBY_FIELD_MASK = [
@@ -123,6 +125,7 @@ const DETAILS_FIELD_MASK = [
   "primaryType",
   "regularOpeningHours",
   "reviews",
+  "reviewSummary",
   "photos",
 ].join(",");
 
@@ -223,6 +226,15 @@ export function mapGooglePlaceDetails(
       mediaUrl: photoMediaUrl(p.name!),
     }));
 
+  const summaryText = raw.reviewSummary?.text?.text?.trim();
+  const reviewSummary: GoogleReviewSummary | undefined = summaryText
+    ? {
+        text: summaryText,
+        disclosureText:
+          raw.reviewSummary?.disclosureText?.text?.trim() || undefined,
+      }
+    : undefined;
+
   return {
     placeId,
     name,
@@ -239,6 +251,7 @@ export function mapGooglePlaceDetails(
     rating: raw.rating,
     userRatingCount: raw.userRatingCount,
     reviews,
+    reviewSummary,
     photos,
     primaryType: raw.primaryType,
     attribution: ATTRIBUTION,
@@ -358,11 +371,8 @@ export async function getGooglePlaceDetails(
     return null;
   }
 
-  const cached = getCachedGoogleDetails(id);
-  if (cached) {
-    return cached;
-  }
-
+  // Never serve cached shells that stripped reviews — always fetch Atmosphere
+  // Details so review + reviewSummary stay fresh and verbatim from Google.
   const res = await placesFetch(
     `/places/${encodeURIComponent(id)}?languageCode=en`,
     {
@@ -381,6 +391,7 @@ export async function getGooglePlaceDetails(
   const raw = (await res.json()) as GooglePlaceRaw;
   const details = mapGooglePlaceDetails(raw);
   if (details) {
+    // Store metadata-only (no review JSON) for optional non-review reuse.
     setCachedGoogleDetails(details);
   }
   return details;
