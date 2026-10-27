@@ -3,11 +3,16 @@
 ## What works
 
 - **Result filters**: named only, has address / hours / website / phone, max distance
-- Filtered list drives the results panel, map markers, and exports
-- **Compare tray**: pin up to 3 places → side-by-side OSM field table (Esc to close)
-- **Exports**: CSV, JSON, HTML of the filtered OSM list
+- **Sort**: distance, name, or most tagged fields
+- Filtered/sorted list drives the results panel, map markers, and exports
+- Empty-filter state with one-click clear
+- **Compare tray**: pin up to 3 places → side-by-side OSM table with differing rows highlighted + export
+- **Exports**: CSV, JSON, HTML of the filtered (or compared) OSM list
   - Includes ODbL attribution
   - Explicit note that Google content is never exported
+  - Download confirmation flash
+- Search aborts in-flight requests; category/radius/sort remembered in localStorage
+- Detail drawer: OSM.org link + copy coordinates
 - Coverage % still reflects the full Overpass result set (before filters)
 
 ## How to run

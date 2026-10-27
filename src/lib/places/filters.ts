@@ -71,3 +71,7 @@ export function activeFilterCount(filters: ResultFilters): number {
   }
   return n;
 }
+
+export function hasActiveFilters(filters: ResultFilters): boolean {
+  return activeFilterCount(filters) > 0;
+}

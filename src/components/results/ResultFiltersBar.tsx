@@ -2,10 +2,16 @@
 
 import type { ResultFilters } from "@/lib/places/filters";
 import { activeFilterCount, DEFAULT_RESULT_FILTERS } from "@/lib/places/filters";
+import {
+  PLACE_SORT_OPTIONS,
+  type PlaceSortId,
+} from "@/lib/places/sort";
 
 type Props = {
   filters: ResultFilters;
   onChange: (next: ResultFilters) => void;
+  sort: PlaceSortId;
+  onSortChange: (sort: PlaceSortId) => void;
   totalCount: number;
   filteredCount: number;
 };
@@ -13,6 +19,8 @@ type Props = {
 export function ResultFiltersBar({
   filters,
   onChange,
+  sort,
+  onSortChange,
   totalCount,
   filteredCount,
 }: Props) {
@@ -32,7 +40,7 @@ export function ResultFiltersBar({
           id="filters-heading"
           className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]"
         >
-          Filters{active > 0 ? ` · ${active}` : ""}
+          Filters & sort{active > 0 ? ` · ${active}` : ""}
         </h3>
         {active > 0 ? (
           <button
@@ -40,9 +48,30 @@ export function ResultFiltersBar({
             className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
             onClick={() => onChange(DEFAULT_RESULT_FILTERS)}
           >
-            Clear
+            Clear filters
           </button>
         ) : null}
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <label
+          htmlFor="result-sort"
+          className="text-xs font-medium text-[var(--ink)]"
+        >
+          Sort
+        </label>
+        <select
+          id="result-sort"
+          className="field !w-auto !py-1 !text-xs"
+          value={sort}
+          onChange={(e) => onSortChange(e.target.value as PlaceSortId)}
+        >
+          {PLACE_SORT_OPTIONS.map((opt) => (
+            <option key={opt.id} value={opt.id}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-[var(--ink)]">

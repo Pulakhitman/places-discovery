@@ -1,9 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  CompareDrawer,
-} from "@/components/compare/CompareDrawer";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CompareDrawer } from "@/components/compare/CompareDrawer";
 import {
   CompareTray,
   MAX_COMPARE,
@@ -24,8 +22,12 @@ import type { GoogleStatusResponse } from "@/lib/places/google-types";
 import {
   DEFAULT_RESULT_FILTERS,
   filterPlaces,
+  hasActiveFilters,
   type ResultFilters,
 } from "@/lib/places/filters";
+import { formatLatLng } from "@/lib/places/format";
+import { loadSearchPrefs, saveSearchPrefs } from "@/lib/places/prefs";
+import { sortPlaces, type PlaceSortId } from "@/lib/places/sort";
 import type {
   FieldCoverage,
   OsmPlace,
@@ -35,11 +37,17 @@ import type { PlaceCategoryId, SearchRadiusKm } from "@/lib/search/categories";
 import { buildMapPlaceholders } from "@/lib/search/placeholders";
 
 export function PlacesWorkspace() {
+  const initialPrefs = useMemo(() => loadSearchPrefs(), []);
   const [selection, setSelection] = useState<LocationSelection>({});
   const [center, setCenter] = useState<MapCenter | null>(null);
-  const [category, setCategory] = useState<PlaceCategoryId>("parks");
-  const [radiusKm, setRadiusKm] = useState<SearchRadiusKm>(5);
+  const [category, setCategory] = useState<PlaceCategoryId>(
+    initialPrefs.category,
+  );
+  const [radiusKm, setRadiusKm] = useState<SearchRadiusKm>(
+    initialPrefs.radiusKm,
+  );
   const [customKeyword, setCustomKeyword] = useState("");
+  const [sort, setSort] = useState<PlaceSortId>(initialPrefs.sort);
   const [searchState, setSearchState] = useState<SearchState>({ status: "idle" });
   const [places, setPlaces] = useState<OsmPlace[]>([]);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
@@ -50,9 +58,17 @@ export function PlacesWorkspace() {
   const [filters, setFilters] = useState<ResultFilters>(DEFAULT_RESULT_FILTERS);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
+  const [coordsCopied, setCoordsCopied] = useState(false);
+
+  const searchAbortRef = useRef<AbortController | null>(null);
+  const searchGenRef = useRef(0);
 
   const focus = useMemo(() => mapFocusFromSelection(selection), [selection]);
   const mapCenter = center ?? focus.center;
+
+  useEffect(() => {
+    saveSearchPrefs({ category, radiusKm, sort });
+  }, [category, radiusKm, sort]);
 
   const mapPlaceholders = useMemo(() => {
     if (!mapCenter) {
@@ -70,9 +86,11 @@ export function PlacesWorkspace() {
   }, [mapCenter, category, radiusKm, customKeyword, searchState.status]);
 
   const filteredPlaces = useMemo(
-    () => filterPlaces(places, filters),
-    [places, filters],
+    () => sortPlaces(filterPlaces(places, filters), sort),
+    [places, filters, sort],
   );
+
+  const filtersActive = hasActiveFilters(filters);
 
   const resultsState = useMemo((): SearchState => {
     if (searchState.status !== "ok") {
@@ -153,10 +171,21 @@ export function PlacesWorkspace() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      searchAbortRef.current?.abort();
+    };
+  }, []);
+
   const runSearch = useCallback(async () => {
     if (!mapCenter) {
       return;
     }
+
+    searchAbortRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+    const gen = ++searchGenRef.current;
 
     setSearchState({ status: "loading" });
     setSelectedPlaceId(null);
@@ -177,7 +206,12 @@ export function PlacesWorkspace() {
           customKeyword:
             category === "custom" ? customKeyword.trim() : undefined,
         }),
+        signal: controller.signal,
       });
+
+      if (gen !== searchGenRef.current) {
+        return;
+      }
 
       const data = (await res.json()) as
         | PlacesSearchSuccess
@@ -226,7 +260,13 @@ export function PlacesWorkspace() {
           meta: success.meta,
         });
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
+      if (gen !== searchGenRef.current) {
+        return;
+      }
       setPlaces([]);
       setSearchState({
         status: "error",
@@ -238,9 +278,19 @@ export function PlacesWorkspace() {
 
   const showTools = searchState.status === "ok" && places.length > 0;
 
+  const copyCenter = useCallback(() => {
+    if (!mapCenter) {
+      return;
+    }
+    const text = formatLatLng(mapCenter.lat, mapCenter.lng, 6);
+    void navigator.clipboard?.writeText(text).then(() => {
+      setCoordsCopied(true);
+      window.setTimeout(() => setCoordsCopied(false), 1500);
+    });
+  }, [mapCenter]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:gap-6">
-      {/* Map first on small screens so it stays usable above the fold */}
       <div className="order-1 h-[42vh] min-h-[260px] w-full shrink-0 sm:h-[48vh] lg:order-2 lg:h-auto lg:min-h-0 lg:flex-1">
         <MapWorkspaceLoader
           center={mapCenter}
@@ -294,6 +344,8 @@ export function PlacesWorkspace() {
             <ResultFiltersBar
               filters={filters}
               onChange={setFilters}
+              sort={sort}
+              onSortChange={setSort}
               totalCount={places.length}
               filteredCount={filteredPlaces.length}
             />
@@ -323,12 +375,25 @@ export function PlacesWorkspace() {
           compareIds={compareIds}
           onToggleCompare={showTools ? handleToggleCompare : undefined}
           compareLimit={MAX_COMPARE}
+          filtersActive={filtersActive}
+          onClearFilters={() => setFilters(DEFAULT_RESULT_FILTERS)}
         />
-        <p className="text-xs text-[var(--muted)]">
-          Center:{" "}
-          {mapCenter
-            ? `${mapCenter.lat.toFixed(5)}, ${mapCenter.lng.toFixed(5)}`
-            : "not set — pick a country/area or tap the map"}
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
+          <span>
+            Center:{" "}
+            {mapCenter
+              ? formatLatLng(mapCenter.lat, mapCenter.lng)
+              : "not set — pick a country/area or tap the map"}
+          </span>
+          {mapCenter ? (
+            <button
+              type="button"
+              className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+              onClick={copyCenter}
+            >
+              {coordsCopied ? "Copied" : "Copy"}
+            </button>
+          ) : null}
         </p>
       </aside>
 
@@ -342,9 +407,7 @@ export function PlacesWorkspace() {
         places={comparePlaces}
         open={compareOpen && comparePlaces.length >= 2}
         onClose={() => setCompareOpen(false)}
-        onRemove={(id) => {
-          handleRemoveCompare(id);
-        }}
+        onRemove={handleRemoveCompare}
       />
     </div>
   );

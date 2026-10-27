@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDistance } from "@/lib/places/format";
 import type { FieldCoverage, OsmPlace, PlacesSearchSuccess } from "@/lib/places/types";
 import type { PlaceCategoryId, SearchRadiusKm } from "@/lib/search/categories";
 import { CategoryIcon } from "@/lib/search/category-icons";
@@ -29,14 +30,10 @@ type Props = {
   compareIds?: string[];
   onToggleCompare?: (id: string) => void;
   compareLimit?: number;
+  /** True when filters removed every result but the search itself had hits. */
+  filtersActive?: boolean;
+  onClearFilters?: () => void;
 };
-
-function formatDistance(m: number): string {
-  if (m < 1000) {
-    return `${m} m`;
-  }
-  return `${(m / 1000).toFixed(1)} km`;
-}
 
 function formatTime(iso: string): string {
   try {
@@ -61,6 +58,8 @@ export function ResultsPanel({
   compareIds = [],
   onToggleCompare,
   compareLimit = 3,
+  filtersActive = false,
+  onClearFilters,
 }: Props) {
   if (state.status === "idle" || state.status === "loading") {
     return (
@@ -138,6 +137,23 @@ export function ResultsPanel({
       ) : (
         <>
           <CoverageSummary coverage={state.coverage} />
+          {state.places.length === 0 && filtersActive ? (
+            <p
+              className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted)]"
+              role="status"
+            >
+              No places match the current filters.{" "}
+              {onClearFilters ? (
+                <button
+                  type="button"
+                  className="font-semibold text-[var(--accent)] underline-offset-2 hover:underline"
+                  onClick={onClearFilters}
+                >
+                  Clear filters
+                </button>
+              ) : null}
+            </p>
+          ) : null}
           <ul
             className="flex max-h-[28rem] flex-col gap-2 overflow-y-auto pr-1"
             aria-label="Place results"

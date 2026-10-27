@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { downloadTextFile } from "@/lib/places/download";
 import {
   placesToExport,
@@ -9,10 +10,12 @@ import type { OsmPlace } from "@/lib/places/types";
 
 type Props = {
   places: OsmPlace[];
+  label?: string;
 };
 
-export function ExportBar({ places }: Props) {
+export function ExportBar({ places, label = "Export (OSM only)" }: Props) {
   const disabled = places.length === 0;
+  const [flash, setFlash] = useState<string | null>(null);
 
   function exportAs(format: ExportFormat) {
     if (places.length === 0) {
@@ -20,6 +23,8 @@ export function ExportBar({ places }: Props) {
     }
     const file = placesToExport(places, format);
     downloadTextFile(file);
+    setFlash(`Downloaded ${file.filename}`);
+    window.setTimeout(() => setFlash(null), 2500);
   }
 
   return (
@@ -31,10 +36,11 @@ export function ExportBar({ places }: Props) {
         id="export-heading"
         className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]"
       >
-        Export (OSM only)
+        {label}
       </h3>
       <p className="mt-1 text-[11px] text-[var(--muted)]">
-        Downloads the filtered list. Google ratings/reviews are never included.
+        {places.length} place{places.length === 1 ? "" : "s"} · Google
+        ratings/reviews are never included.
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
         <ExportButton
@@ -53,6 +59,11 @@ export function ExportBar({ places }: Props) {
           onClick={() => exportAs("html")}
         />
       </div>
+      {flash ? (
+        <p className="mt-2 text-[11px] font-medium text-[var(--accent)]" role="status">
+          {flash}
+        </p>
+      ) : null}
     </section>
   );
 }

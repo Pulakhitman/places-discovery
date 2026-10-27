@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
+import { ExportBar } from "@/components/results/ExportBar";
+import { formatDistance } from "@/lib/places/format";
 import type { OsmPlace } from "@/lib/places/types";
 import { CategoryIcon } from "@/lib/search/category-icons";
 
@@ -10,13 +12,6 @@ type Props = {
   onClose: () => void;
   onRemove: (id: string) => void;
 };
-
-function formatDistance(m: number): string {
-  if (m < 1000) {
-    return `${m} m`;
-  }
-  return `${(m / 1000).toFixed(1)} km`;
-}
 
 const ROWS: { key: keyof OsmPlace | "named"; label: string }[] = [
   { key: "name", label: "Name" },
@@ -43,9 +38,29 @@ function cellValue(place: OsmPlace, key: (typeof ROWS)[number]["key"]): string {
   return "—";
 }
 
+function rowHasDiff(
+  places: OsmPlace[],
+  key: (typeof ROWS)[number]["key"],
+): boolean {
+  if (places.length < 2) {
+    return false;
+  }
+  const first = cellValue(places[0]!, key);
+  return places.some((p) => cellValue(p, key) !== first);
+}
+
 export function CompareDrawer({ places, open, onClose, onRemove }: Props) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const diffKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of ROWS) {
+      if (rowHasDiff(places, row.key)) {
+        set.add(row.key);
+      }
+    }
+    return set;
+  }, [places]);
 
   useEffect(() => {
     if (!open) {
@@ -94,7 +109,8 @@ export function CompareDrawer({ places, open, onClose, onRemove }: Props) {
               Compare places
             </h2>
             <p className="text-xs text-[var(--muted)]">
-              OpenStreetMap fields only · Esc to close
+              OpenStreetMap fields only · differing rows highlighted · Esc to
+              close
             </p>
           </div>
           <button
@@ -141,39 +157,60 @@ export function CompareDrawer({ places, open, onClose, onRemove }: Props) {
               </tr>
             </thead>
             <tbody>
-              {ROWS.map((row) => (
-                <tr key={row.key} className="border-t border-[var(--line)]">
-                  <th className="sticky left-0 bg-[var(--surface)] px-2 py-2 text-xs font-medium text-[var(--muted)]">
-                    {row.label}
-                  </th>
-                  {places.map((place) => {
-                    const value = cellValue(place, row.key);
-                    const isLink =
-                      row.key === "website" && value.startsWith("http");
-                    return (
-                      <td
-                        key={`${place.id}-${row.key}`}
-                        className="px-2 py-2 text-[var(--ink)]"
-                      >
-                        {isLink ? (
-                          <a
-                            href={value}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="break-all text-[var(--accent)] underline-offset-2 hover:underline"
-                          >
-                            {value}
-                          </a>
-                        ) : (
-                          <span className="break-words">{value}</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+              {ROWS.map((row) => {
+                const differs = diffKeys.has(row.key);
+                return (
+                  <tr
+                    key={row.key}
+                    className={`border-t border-[var(--line)] ${
+                      differs
+                        ? "bg-[color-mix(in_oklab,var(--accent)_7%,transparent)]"
+                        : ""
+                    }`}
+                  >
+                    <th className="sticky left-0 bg-[inherit] px-2 py-2 text-xs font-medium text-[var(--muted)]">
+                      {row.label}
+                      {differs ? (
+                        <span className="ml-1 text-[10px] font-normal text-[var(--accent)]">
+                          differs
+                        </span>
+                      ) : null}
+                    </th>
+                    {places.map((place) => {
+                      const value = cellValue(place, row.key);
+                      const isLink =
+                        row.key === "website" && value.startsWith("http");
+                      return (
+                        <td
+                          key={`${place.id}-${row.key}`}
+                          className={`px-2 py-2 text-[var(--ink)] ${
+                            differs ? "font-medium" : ""
+                          }`}
+                        >
+                          {isLink ? (
+                            <a
+                              href={value}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="break-all text-[var(--accent)] underline-offset-2 hover:underline"
+                            >
+                              {value}
+                            </a>
+                          ) : (
+                            <span className="break-words">{value}</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+        </div>
+
+        <div className="border-t border-[var(--line)] px-4 py-3">
+          <ExportBar places={places} label="Export compared (OSM only)" />
         </div>
 
         <footer className="border-t border-[var(--line)] px-4 py-2 text-[11px] text-[var(--muted)]">

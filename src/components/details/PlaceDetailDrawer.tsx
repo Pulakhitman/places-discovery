@@ -6,6 +6,11 @@ import type {
   GooglePlaceDetails,
   GoogleStatusResponse,
 } from "@/lib/places/google-types";
+import {
+  formatDistance,
+  formatLatLng,
+  osmBrowseUrl,
+} from "@/lib/places/format";
 import type { OsmPlace } from "@/lib/places/types";
 import { CategoryIcon } from "@/lib/search/category-icons";
 
@@ -21,13 +26,6 @@ type Props = {
   open: boolean;
   onClose: () => void;
 };
-
-function formatDistance(m: number): string {
-  if (m < 1000) {
-    return `${m} m`;
-  }
-  return `${(m / 1000).toFixed(1)} km`;
-}
 
 export function PlaceDetailDrawer({ place, open, onClose }: Props) {
   if (!open || !place) {
@@ -203,9 +201,25 @@ function PlaceDetailDrawerInner({
               <Row label="Hours" value={place.hours} />
               <Row label="Website" value={place.website} link />
               <Row label="Phone" value={place.phone} />
+              <Row
+                label="Coordinates"
+                value={formatLatLng(place.lat, place.lng)}
+              />
             </dl>
-            <p className="mt-2 text-[11px] text-[var(--muted)]">
-              © OpenStreetMap contributors · ODbL
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--muted)]">
+              <span>© OpenStreetMap contributors · ODbL</span>
+              <a
+                href={osmBrowseUrl(place.osmType, place.osmId)}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+              >
+                View on openstreetmap.org
+              </a>
+              <CopyButton
+                label="Copy coords"
+                value={formatLatLng(place.lat, place.lng, 6)}
+              />
             </p>
           </section>
 
@@ -303,6 +317,25 @@ function Row({
         )}
       </dd>
     </div>
+  );
+}
+
+function CopyButton({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <button
+      type="button"
+      className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+      onClick={() => {
+        void navigator.clipboard?.writeText(value).then(() => {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1500);
+        });
+      }}
+    >
+      {copied ? "Copied" : label}
+    </button>
   );
 }
 
