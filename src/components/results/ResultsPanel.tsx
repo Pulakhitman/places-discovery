@@ -1,0 +1,262 @@
+"use client";
+
+import type { FieldCoverage, OsmPlace, PlacesSearchSuccess } from "@/lib/places/types";
+
+type SearchState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "empty"; meta: PlacesSearchSuccess["meta"] }
+  | { status: "ok"; places: OsmPlace[]; coverage: FieldCoverage; meta: PlacesSearchSuccess["meta"] }
+  | {
+      status: "error" | "rate_limited";
+      message: string;
+      retryable: boolean;
+      retryAfterSec?: number;
+    };
+
+type Props = {
+  state: SearchState;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onRetry: () => void;
+};
+
+function formatDistance(m: number): string {
+  if (m < 1000) {
+    return `${m} m`;
+  }
+  return `${(m / 1000).toFixed(1)} km`;
+}
+
+function formatTime(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+export function ResultsPanel({
+  state,
+  selectedId,
+  onSelect,
+  onRetry,
+}: Props) {
+  if (state.status === "idle") {
+    return (
+      <section aria-labelledby="results-heading" className="flex flex-col gap-2">
+        <h2
+          id="results-heading"
+          className="text-sm font-semibold tracking-wide text-[var(--ink)]"
+        >
+          Results
+        </h2>
+        <p className="text-sm text-[var(--muted)]">
+          Set a map center, pick a category and radius, then search nearby
+          OpenStreetMap places.
+        </p>
+      </section>
+    );
+  }
+
+  if (state.status === "loading") {
+    return (
+      <section aria-labelledby="results-heading" className="flex flex-col gap-2">
+        <h2
+          id="results-heading"
+          className="text-sm font-semibold tracking-wide text-[var(--ink)]"
+        >
+          Results
+        </h2>
+        <p className="text-sm text-[var(--muted)]" role="status">
+          Searching OpenStreetMap…
+        </p>
+      </section>
+    );
+  }
+
+  if (state.status === "error" || state.status === "rate_limited") {
+    return (
+      <section aria-labelledby="results-heading" className="flex flex-col gap-2">
+        <h2
+          id="results-heading"
+          className="text-sm font-semibold tracking-wide text-[var(--ink)]"
+        >
+          Results
+        </h2>
+        <p
+          className={`rounded-md border px-3 py-2 text-sm ${
+            state.status === "rate_limited"
+              ? "border-[var(--warn)] text-[var(--warn)]"
+              : "border-[var(--danger)] text-[var(--danger)]"
+          }`}
+          role="alert"
+        >
+          {state.message}
+          {state.retryAfterSec
+            ? ` Try again in ~${state.retryAfterSec}s.`
+            : ""}
+          {state.retryable && (
+            <>
+              {" "}
+              <button type="button" className="underline" onClick={onRetry}>
+                Retry
+              </button>
+            </>
+          )}
+        </p>
+      </section>
+    );
+  }
+
+  if (state.status !== "ok" && state.status !== "empty") {
+    return null;
+  }
+
+  const { meta } = state;
+  const count = state.status === "ok" ? state.places.length : 0;
+
+  return (
+    <section aria-labelledby="results-heading" className="flex min-h-0 flex-col gap-3">
+      <div>
+        <h2
+          id="results-heading"
+          className="text-sm font-semibold tracking-wide text-[var(--ink)]"
+        >
+          {meta.categoryLabel} · {meta.radiusKm} km · {count} place
+          {count === 1 ? "" : "s"}
+        </h2>
+        <p className="text-xs text-[var(--muted)]">
+          Searched {formatTime(meta.searchedAt)} · {meta.attribution} ({meta.license})
+        </p>
+      </div>
+
+      {state.status === "empty" ? (
+        <p className="text-sm text-[var(--muted)]" role="status">
+          No OpenStreetMap places found in this radius. Try a larger radius or
+          another category.
+        </p>
+      ) : (
+        <>
+          <CoverageSummary coverage={state.coverage} />
+          <ul
+            className="flex max-h-[28rem] flex-col gap-2 overflow-y-auto pr-1"
+            aria-label="Place results"
+          >
+            {state.places.map((place) => {
+              const active = place.id === selectedId;
+              return (
+                <li key={place.id}>
+                  <button
+                    type="button"
+                    className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                      active
+                        ? "border-[var(--accent)] bg-[var(--surface-2)]"
+                        : "border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--surface-2)]"
+                    }`}
+                    aria-pressed={active}
+                    onClick={() => onSelect(active ? null : place.id)}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-medium text-[var(--ink)]">
+                        {place.name}
+                      </span>
+                      <span className="shrink-0 text-xs text-[var(--muted)]">
+                        {formatDistance(place.distanceM)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-[var(--muted)]">
+                      {place.categoryLabel} · OSM
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--ink)]">
+                      {place.address ?? (
+                        <span className="text-[var(--muted)]">
+                          Address not tagged
+                        </span>
+                      )}
+                    </p>
+                    <dl className="mt-2 grid gap-1 text-xs text-[var(--muted)]">
+                      <div>
+                        <dt className="inline font-medium text-[var(--ink)]">
+                          Hours:{" "}
+                        </dt>
+                        <dd className="inline">
+                          {place.hours ?? "Not available from this source"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="inline font-medium text-[var(--ink)]">
+                          Website:{" "}
+                        </dt>
+                        <dd className="inline">
+                          {place.website ? (
+                            <a
+                              href={place.website}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[var(--accent)] underline-offset-2 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {place.website}
+                            </a>
+                          ) : (
+                            "Not available from this source"
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="inline font-medium text-[var(--ink)]">
+                          Phone:{" "}
+                        </dt>
+                        <dd className="inline">
+                          {place.phone ?? "Not available from this source"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="inline font-medium text-[var(--ink)]">
+                          Rating / reviews:{" "}
+                        </dt>
+                        <dd className="inline">
+                          Not available from this source
+                        </dd>
+                      </div>
+                    </dl>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-[11px] text-[var(--muted)]">
+            Coverage varies by area. Data © OpenStreetMap contributors, ODbL.
+            Google ratings/reviews are not used in this step.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function CoverageSummary({ coverage }: { coverage: FieldCoverage }) {
+  if (coverage.total === 0) {
+    return null;
+  }
+  return (
+    <div
+      className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]"
+      aria-label="OSM field coverage"
+    >
+      <p className="font-medium text-[var(--ink)]">OSM field coverage</p>
+      <ul className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5">
+        <li>Hours {coverage.hoursPct}%</li>
+        <li>Website {coverage.websitePct}%</li>
+        <li>Phone {coverage.phonePct}%</li>
+        <li>Address {coverage.addressPct}%</li>
+      </ul>
+    </div>
+  );
+}
+
+export type { SearchState };

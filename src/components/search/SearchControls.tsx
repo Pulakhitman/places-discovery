@@ -10,8 +10,11 @@ import {
 type Props = {
   category: PlaceCategoryId;
   radiusKm: SearchRadiusKm;
+  customKeyword: string;
+  loading?: boolean;
   onCategoryChange: (id: PlaceCategoryId) => void;
   onRadiusChange: (km: SearchRadiusKm) => void;
+  onCustomKeywordChange: (value: string) => void;
   onSearch: () => void;
   disabled?: boolean;
 };
@@ -19,11 +22,16 @@ type Props = {
 export function SearchControls({
   category,
   radiusKm,
+  customKeyword,
+  loading,
   onCategoryChange,
   onRadiusChange,
+  onCustomKeywordChange,
   onSearch,
   disabled,
 }: Props) {
+  const customMissing = category === "custom" && !customKeyword.trim();
+
   return (
     <section aria-labelledby="search-heading" className="flex flex-col gap-3">
       <div>
@@ -34,21 +42,26 @@ export function SearchControls({
           Search
         </h2>
         <p className="text-sm text-[var(--muted)]">
-          Category and radius around the map center. Place discovery lands in a
-          later step — this run is a shell only.
+          Find OpenStreetMap places around the map center by category and
+          radius.
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label htmlFor="category" className="mb-1 block text-sm font-medium text-[var(--ink)]">
+          <label
+            htmlFor="category"
+            className="mb-1 block text-sm font-medium text-[var(--ink)]"
+          >
             Category
           </label>
           <select
             id="category"
             className="field"
             value={category}
-            onChange={(e) => onCategoryChange(e.target.value as PlaceCategoryId)}
+            onChange={(e) =>
+              onCategoryChange(e.target.value as PlaceCategoryId)
+            }
           >
             {PLACE_CATEGORIES.map((c) => (
               <option key={c.id} value={c.id}>
@@ -59,7 +72,10 @@ export function SearchControls({
         </div>
 
         <div>
-          <label htmlFor="radius" className="mb-1 block text-sm font-medium text-[var(--ink)]">
+          <label
+            htmlFor="radius"
+            className="mb-1 block text-sm font-medium text-[var(--ink)]"
+          >
             Radius
           </label>
           <select
@@ -79,16 +95,37 @@ export function SearchControls({
         </div>
       </div>
 
+      {category === "custom" && (
+        <div>
+          <label
+            htmlFor="custom-keyword"
+            className="mb-1 block text-sm font-medium text-[var(--ink)]"
+          >
+            Custom keyword
+          </label>
+          <input
+            id="custom-keyword"
+            type="text"
+            className="field"
+            value={customKeyword}
+            onChange={(e) => onCustomKeywordChange(e.target.value)}
+            placeholder="e.g. bakery, clinic…"
+            autoComplete="off"
+          />
+        </div>
+      )}
+
       <button
         type="button"
         className="btn-primary"
-        disabled={disabled}
+        disabled={disabled || loading || customMissing}
         onClick={onSearch}
       >
-        Search nearby (stub)
+        {loading ? "Searching…" : "Search nearby"}
       </button>
       <p className="text-xs text-[var(--muted)]">
-        TODO: Overpass + Google Places search in later steps. No scrapers.
+        Source: OpenStreetMap via Overpass. No scrapers. Google Places comes in
+        a later step.
       </p>
     </section>
   );

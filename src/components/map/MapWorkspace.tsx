@@ -11,6 +11,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import type { MapCenter } from "@/lib/location/types";
+import type { OsmPlace } from "@/lib/places/types";
 
 import "leaflet/dist/leaflet.css";
 
@@ -24,11 +25,23 @@ const pinIcon = L.divIcon({
   iconAnchor: [14, 14],
 });
 
+function resultIcon(active: boolean) {
+  return L.divIcon({
+    className: "result-marker",
+    html: `<span class="result-marker__dot${active ? " result-marker__dot--active" : ""}" aria-hidden="true"></span>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  });
+}
+
 type Props = {
   center: MapCenter | null;
   radiusKm: number;
   boundingBox?: [number, number, number, number];
+  places?: OsmPlace[];
+  selectedPlaceId?: string | null;
   onCenterChange: (center: MapCenter) => void;
+  onSelectPlace?: (id: string | null) => void;
 };
 
 function MapFocus({
@@ -64,6 +77,29 @@ function MapFocus({
   return null;
 }
 
+function SelectedPlacePan({
+  places,
+  selectedPlaceId,
+}: {
+  places: OsmPlace[];
+  selectedPlaceId?: string | null;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!selectedPlaceId) {
+      return;
+    }
+    const place = places.find((p) => p.id === selectedPlaceId);
+    if (!place) {
+      return;
+    }
+    map.panTo([place.lat, place.lng], { animate: true });
+  }, [map, places, selectedPlaceId]);
+
+  return null;
+}
+
 function MapClickSetter({
   onCenterChange,
 }: {
@@ -71,8 +107,8 @@ function MapClickSetter({
 }) {
   useMapEvents({
     click(e) {
-      // Map click sets center; marker drag handled separately.
-      // Intentionally ignore clicks that Leaflet routes to markers.
+      // Map background click sets search center.
+      // Result marker clicks must call stopPropagation so they do not reach here.
       onCenterChange({ lat: e.latlng.lat, lng: e.latlng.lng });
     },
   });
@@ -86,7 +122,10 @@ export function MapWorkspace({
   center,
   radiusKm,
   boundingBox,
+  places = [],
+  selectedPlaceId = null,
   onCenterChange,
+  onSelectPlace,
 }: Props) {
   const activeCenter = center ?? DEFAULT_CENTER;
   const radiusMeters = useMemo(() => radiusKm * 1000, [radiusKm]);
@@ -109,6 +148,7 @@ export function MapWorkspace({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapFocus center={center} boundingBox={boundingBox} />
+        <SelectedPlacePan places={places} selectedPlaceId={selectedPlaceId} />
         <MapClickSetter onCenterChange={onCenterChange} />
         <Circle
           center={[activeCenter.lat, activeCenter.lng]}
@@ -124,18 +164,39 @@ export function MapWorkspace({
           position={[activeCenter.lat, activeCenter.lng]}
           draggable
           icon={pinIcon}
+          zIndexOffset={1000}
           eventHandlers={{
             dragend: (e) => {
               const marker = e.target as L.Marker;
               const ll = marker.getLatLng();
               onCenterChange({ lat: ll.lat, lng: ll.lng });
             },
+            click: (e) => {
+              L.DomEvent.stopPropagation(e.originalEvent);
+            },
           }}
           title="Search center — drag to move"
         />
+        {places.map((place) => (
+          <Marker
+            key={place.id}
+            position={[place.lat, place.lng]}
+            icon={resultIcon(place.id === selectedPlaceId)}
+            zIndexOffset={place.id === selectedPlaceId ? 800 : 400}
+            eventHandlers={{
+              click: (e) => {
+                // Must not set a new search center — only select the place.
+                L.DomEvent.stopPropagation(e.originalEvent);
+                onSelectPlace?.(place.id);
+              },
+            }}
+            title={place.name}
+          />
+        ))}
       </MapContainer>
       <p className="pointer-events-none absolute bottom-2 left-2 z-[1000] rounded bg-[color-mix(in_oklab,var(--surface)_90%,transparent)] px-2 py-1 text-[11px] text-[var(--muted)] shadow-sm">
-        Click map or drag pin to set center · {radiusKm} km radius
+        Click map or drag pin to set center · markers select places · {radiusKm}{" "}
+        km radius
       </p>
     </div>
   );

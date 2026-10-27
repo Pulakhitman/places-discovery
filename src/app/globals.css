@@ -133,6 +133,30 @@ body {
   box-shadow: 0 2px 8px rgba(28, 25, 20, 0.35);
 }
 
+.result-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.result-marker__dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 4px;
+  border-radius: 999px;
+  background: #b45309;
+  border: 2px solid #fffdf8;
+  box-shadow: 0 1px 6px rgba(28, 25, 20, 0.3);
+}
+
+.result-marker__dot--active {
+  background: #0f766e;
+  width: 16px;
+  height: 16px;
+  margin: 3px;
+  box-shadow: 0 0 0 3px color-mix(in oklab, #0f766e 35%, transparent);
+}
+
 .map-shell .leaflet-container {
   font: inherit;
   background: #dfe8e4;

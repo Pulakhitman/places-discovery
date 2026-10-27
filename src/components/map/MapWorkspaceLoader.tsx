@@ -2,10 +2,10 @@
 
 import dynamic from "next/dynamic";
 import type { MapCenter } from "@/lib/location/types";
+import type { OsmPlace } from "@/lib/places/types";
 
 const MapWorkspace = dynamic(
-  () =>
-    import("./MapWorkspace").then((m) => m.MapWorkspace),
+  () => import("./MapWorkspace").then((m) => m.MapWorkspace),
   {
     ssr: false,
     loading: () => (
@@ -23,7 +23,10 @@ type Props = {
   center: MapCenter | null;
   radiusKm: number;
   boundingBox?: [number, number, number, number];
+  places?: OsmPlace[];
+  selectedPlaceId?: string | null;
   onCenterChange: (center: MapCenter) => void;
+  onSelectPlace?: (id: string | null) => void;
 };
 
 export function MapWorkspaceLoader(props: Props) {

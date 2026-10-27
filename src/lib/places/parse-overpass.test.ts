@@ -1,0 +1,125 @@
+import { describe, expect, it } from "vitest";
+import { computeOsmCoverage } from "./coverage";
+import { parseOverpassElements, type OverpassElement } from "./parse-overpass";
+
+const center = { lat: 37.77, lng: -122.42 };
+
+describe("parseOverpassElements", () => {
+  it("maps tags to place fields and sorts by distance", () => {
+    const elements: OverpassElement[] = [
+      {
+        type: "node",
+        id: 2,
+        lat: 37.78,
+        lon: -122.42,
+        tags: {
+          name: "Far Park",
+          opening_hours: "Mo-Su 08:00-18:00",
+        },
+      },
+      {
+        type: "node",
+        id: 1,
+        lat: 37.771,
+        lon: -122.42,
+        tags: {
+          name: "Near Garden",
+          "addr:street": "Market St",
+          "addr:city": "San Francisco",
+          website: "https://example.org",
+          phone: "+1 555 0100",
+        },
+      },
+      {
+        type: "way",
+        id: 9,
+        // missing coords — dropped
+        tags: { name: "No coords" },
+      },
+    ];
+
+    const places = parseOverpassElements(elements, {
+      center,
+      categoryId: "parks",
+    });
+
+    expect(places).toHaveLength(2);
+    expect(places[0]?.name).toBe("Near Garden");
+    expect(places[0]?.address).toContain("Market St");
+    expect(places[0]?.website).toBe("https://example.org");
+    expect(places[0]?.phone).toBe("+1 555 0100");
+    expect(places[0]?.hours).toBeUndefined();
+    expect(places[0]?.sources.osm).toBe(true);
+    expect(places[1]?.name).toBe("Far Park");
+    expect(places[1]?.hours).toBe("Mo-Su 08:00-18:00");
+    expect(places[0]!.distanceM).toBeLessThan(places[1]!.distanceM);
+  });
+
+  it("uses way center coordinates", () => {
+    const places = parseOverpassElements(
+      [
+        {
+          type: "way",
+          id: 44,
+          center: { lat: 37.775, lon: -122.419 },
+          tags: { name: "Civic Center" },
+        },
+      ],
+      { center, categoryId: "parks" },
+    );
+    expect(places).toHaveLength(1);
+    expect(places[0]?.lat).toBe(37.775);
+    expect(places[0]?.id).toBe("osm:way/44");
+  });
+
+  it("deduplicates by osm type/id", () => {
+    const el: OverpassElement = {
+      type: "node",
+      id: 7,
+      lat: 37.77,
+      lon: -122.42,
+      tags: { name: "Dup" },
+    };
+    const places = parseOverpassElements([el, el], {
+      center,
+      categoryId: "shops",
+    });
+    expect(places).toHaveLength(1);
+  });
+});
+
+describe("computeOsmCoverage", () => {
+  it("reports percentages for tagged fields", () => {
+    const places = parseOverpassElements(
+      [
+        {
+          type: "node",
+          id: 1,
+          lat: 37.77,
+          lon: -122.42,
+          tags: {
+            name: "A",
+            opening_hours: "24/7",
+            website: "https://a.test",
+            "addr:street": "Main",
+          },
+        },
+        {
+          type: "node",
+          id: 2,
+          lat: 37.771,
+          lon: -122.42,
+          tags: { name: "B", phone: "123" },
+        },
+      ],
+      { center, categoryId: "cafes" },
+    );
+
+    const coverage = computeOsmCoverage(places);
+    expect(coverage.total).toBe(2);
+    expect(coverage.hoursPct).toBe(50);
+    expect(coverage.websitePct).toBe(50);
+    expect(coverage.phonePct).toBe(50);
+    expect(coverage.addressPct).toBe(50);
+  });
+});
