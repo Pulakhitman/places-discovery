@@ -1,6 +1,8 @@
 "use client";
 
 import type { FieldCoverage, OsmPlace, PlacesSearchSuccess } from "@/lib/places/types";
+import type { PlaceCategoryId, SearchRadiusKm } from "@/lib/search/categories";
+import { ResultsPlaceholders } from "./ResultsPlaceholders";
 
 type SearchState =
   | { status: "idle" }
@@ -19,6 +21,10 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onRetry: () => void;
+  category: PlaceCategoryId;
+  radiusKm: SearchRadiusKm;
+  customKeyword?: string;
+  hasCenter: boolean;
 };
 
 function formatDistance(m: number): string {
@@ -44,37 +50,20 @@ export function ResultsPanel({
   selectedId,
   onSelect,
   onRetry,
+  category,
+  radiusKm,
+  customKeyword,
+  hasCenter,
 }: Props) {
-  if (state.status === "idle") {
+  if (state.status === "idle" || state.status === "loading") {
     return (
-      <section aria-labelledby="results-heading" className="flex flex-col gap-2">
-        <h2
-          id="results-heading"
-          className="text-sm font-semibold tracking-wide text-[var(--ink)]"
-        >
-          Results
-        </h2>
-        <p className="text-sm text-[var(--muted)]">
-          Set a map center, pick a category and radius, then search nearby
-          OpenStreetMap places.
-        </p>
-      </section>
-    );
-  }
-
-  if (state.status === "loading") {
-    return (
-      <section aria-labelledby="results-heading" className="flex flex-col gap-2">
-        <h2
-          id="results-heading"
-          className="text-sm font-semibold tracking-wide text-[var(--ink)]"
-        >
-          Results
-        </h2>
-        <p className="text-sm text-[var(--muted)]" role="status">
-          Searching OpenStreetMap…
-        </p>
-      </section>
+      <ResultsPlaceholders
+        category={category}
+        radiusKm={radiusKm}
+        customKeyword={customKeyword}
+        mode={state.status}
+        hasCenter={hasCenter}
+      />
     );
   }
 

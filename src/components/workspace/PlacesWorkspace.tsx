@@ -157,6 +157,10 @@ export function PlacesWorkspace() {
           selectedId={selectedPlaceId}
           onSelect={setSelectedPlaceId}
           onRetry={() => void runSearch()}
+          category={category}
+          radiusKm={radiusKm}
+          customKeyword={customKeyword}
+          hasCenter={Boolean(mapCenter)}
         />
         <p className="text-xs text-[var(--muted)]">
           Center:{" "}
