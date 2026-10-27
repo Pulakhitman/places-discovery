@@ -72,6 +72,10 @@ body {
   padding: 0.25rem;
 }
 
+.dropdown-tall {
+  max-height: min(24rem, 55vh);
+}
+
 .dropdown-item {
   display: flex;
   width: 100%;

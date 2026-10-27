@@ -55,8 +55,9 @@ export function LocationHierarchy({ selection, onChange }: Props) {
           Area
         </h2>
         <p className="text-sm text-[var(--muted)]">
-          Pick a country, then optionally narrow by region, county, and city.
-          Matches are never auto-selected — choose one from the list.
+          Open Country to scroll the full ISO list (or type to filter). Then
+          optionally search region, county, and city — those levels come from
+          Nominatim, so pick a match from the results (never auto-selected).
         </p>
       </div>
 
@@ -82,44 +83,76 @@ export function LocationHierarchy({ selection, onChange }: Props) {
       </nav>
 
       <div className="relative">
-        <label htmlFor="country-search" className="mb-1 block text-sm font-medium text-[var(--ink)]">
-          Country
-        </label>
-        <input
-          id="country-search"
-          type="search"
-          role="combobox"
-          aria-expanded={countryOpen}
-          aria-controls={countryListId}
-          aria-autocomplete="list"
-          autoComplete="off"
-          placeholder="Search countries…"
-          value={
-            countryOpen
-              ? countryQuery
-              : selection.country?.name ?? countryQuery
-          }
-          onChange={(e) => {
-            setCountryQuery(e.target.value);
-            setCountryOpen(true);
-          }}
-          onFocus={() => {
-            setCountryQuery(selection.country?.name ?? "");
-            setCountryOpen(true);
-          }}
-          onBlur={() => {
-            // Delay so option click registers
-            window.setTimeout(() => setCountryOpen(false), 150);
-          }}
-          className="field"
-        />
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <label htmlFor="country-search" className="text-sm font-medium text-[var(--ink)]">
+            Country
+          </label>
+          <span className="text-xs text-[var(--muted)]">
+            {countries.length} countries — scroll or type to filter
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <input
+            id="country-search"
+            type="search"
+            role="combobox"
+            aria-expanded={countryOpen}
+            aria-controls={countryListId}
+            aria-autocomplete="list"
+            autoComplete="off"
+            placeholder="Click to browse all, or type to filter…"
+            value={
+              countryOpen
+                ? countryQuery
+                : selection.country?.name ?? countryQuery
+            }
+            onChange={(e) => {
+              setCountryQuery(e.target.value);
+              setCountryOpen(true);
+            }}
+            onFocus={() => {
+              // Open with empty filter so the full country list is visible.
+              setCountryQuery("");
+              setCountryOpen(true);
+            }}
+            onBlur={() => {
+              // Delay so option click registers
+              window.setTimeout(() => setCountryOpen(false), 150);
+            }}
+            className="field"
+          />
+          <button
+            type="button"
+            className="shrink-0 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)] hover:bg-[var(--surface-2)]"
+            aria-expanded={countryOpen}
+            aria-controls={countryListId}
+            aria-label={countryOpen ? "Hide country list" : "Show all countries"}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              if (countryOpen) {
+                setCountryOpen(false);
+                return;
+              }
+              setCountryQuery("");
+              setCountryOpen(true);
+              document.getElementById("country-search")?.focus();
+            }}
+          >
+            {countryOpen ? "Hide" : "List"}
+          </button>
+        </div>
         {countryOpen && (
           <ul
             id={countryListId}
             role="listbox"
-            aria-label="Countries"
-            className="dropdown"
+            aria-label="All countries"
+            className="dropdown dropdown-tall"
           >
+            <li className="sticky top-0 z-[1] border-b border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted)]">
+              {countryQuery.trim()
+                ? `${filteredCountries.length} match${filteredCountries.length === 1 ? "" : "es"}`
+                : `Showing all ${countries.length} countries`}
+            </li>
             {filteredCountries.length === 0 ? (
               <li className="px-3 py-2 text-sm text-[var(--muted)]">No countries match</li>
             ) : (
@@ -127,7 +160,9 @@ export function LocationHierarchy({ selection, onChange }: Props) {
                 <li key={c.code} role="option" aria-selected={selection.country?.code === c.code}>
                   <button
                     type="button"
-                    className="dropdown-item"
+                    className={`dropdown-item ${
+                      selection.country?.code === c.code ? "bg-[var(--surface-2)] font-medium" : ""
+                    }`}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       onChange(setCountry(selection, c));
