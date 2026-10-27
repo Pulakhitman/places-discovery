@@ -25,7 +25,7 @@ describe("overpass query helpers", () => {
       category: "parks",
     });
     expect(q).toContain("around:5000,37.77,-122.42");
-    expect(q).toContain('["leisure"="park"]');
+    expect(q).toContain('nwr["leisure"="park"]');
     expect(q).toContain("out center tags");
   });
 

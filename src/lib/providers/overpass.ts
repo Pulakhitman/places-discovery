@@ -29,8 +29,16 @@ function baseUrl(): string {
 
 function timeoutMs(): number {
   const raw = process.env.OVERPASS_TIMEOUT_MS;
-  const n = raw ? Number(raw) : 25_000;
-  return Number.isFinite(n) && n > 0 ? n : 25_000;
+  const n = raw ? Number(raw) : 60_000;
+  return Number.isFinite(n) && n > 0 ? n : 60_000;
+}
+
+function userAgent(): string {
+  return (
+    process.env.OVERPASS_USER_AGENT ||
+    process.env.NOMINATIM_USER_AGENT ||
+    "PlacesDiscovery/0.1 (https://github.com/Pulakhitman/places-discovery)"
+  );
 }
 
 export type OverpassSearchParams = {
@@ -71,7 +79,7 @@ export async function searchOverpass(
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-        Accept: "application/json",
+        "User-Agent": userAgent(),
       },
       body: new URLSearchParams({ data: query }).toString(),
       signal: controller.signal,

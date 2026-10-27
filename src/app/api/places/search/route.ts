@@ -70,7 +70,6 @@ export async function POST(request: Request) {
       radiusM: radiusKm * 1000,
       category: categoryRaw,
       customKeyword,
-      signal: request.signal,
     });
 
     const coverage = computeOsmCoverage(places);

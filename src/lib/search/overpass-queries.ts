@@ -59,16 +59,11 @@ export function buildOverpassQuery(params: {
     filters = CATEGORY_FILTERS[category];
   }
 
-  const clauses = filters
-    .flatMap((f) => [
-      `node${f}${around};`,
-      `way${f}${around};`,
-      `relation${f}${around};`,
-    ])
-    .join("\n  ");
+  // `nwr` matches nodes, ways, and relations in one clause (lighter than 3×).
+  const clauses = filters.map((f) => `nwr${f}${around};`).join("\n  ");
 
   return `
-[out:json][timeout:25];
+[out:json][timeout:60];
 (
   ${clauses}
 );
