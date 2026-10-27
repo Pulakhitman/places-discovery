@@ -26,7 +26,11 @@ export async function enrichGeocodeBoundingBox(params: {
   if (params.countryCode) {
     search.set("country", params.countryCode);
   }
-  if (params.level === "region" || params.level === "city") {
+  if (
+    params.level === "region" ||
+    params.level === "county" ||
+    params.level === "city"
+  ) {
     search.set("level", params.level);
   }
 

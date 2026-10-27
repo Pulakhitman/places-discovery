@@ -43,6 +43,19 @@ export function LocationHierarchy({ selection, onChange }: Props) {
     selectionRef.current = selection;
   }, [selection]);
 
+  /**
+   * Keep selectionRef in sync before parent re-renders. Nominatim enrich
+   * callbacks race the useEffect above; without this, a late region/country
+   * patch can overwrite a county/city the user just picked.
+   */
+  const commit = useCallback(
+    (next: LocationSelection) => {
+      selectionRef.current = next;
+      onChange(next);
+    },
+    [onChange],
+  );
+
   const countries = useMemo(() => getAllCountries(), []);
   const [countryQuery, setCountryQuery] = useState("");
   const [countryOpen, setCountryOpen] = useState(false);
@@ -82,8 +95,9 @@ export function LocationHierarchy({ selection, onChange }: Props) {
     opt: DivisionOption,
   ) => {
     const immediate = toGeocodeResult(opt, level);
-    onChange(selectGeocodeLevel(selection, level, immediate));
-    const countryCode = selection.country?.code;
+    const base = selectionRef.current;
+    commit(selectGeocodeLevel(base, level, immediate));
+    const countryCode = base.country?.code;
     void enrichGeocodeBoundingBox({
       result: immediate,
       level,
@@ -99,12 +113,12 @@ export function LocationHierarchy({ selection, onChange }: Props) {
         return;
       }
       // Patch only — never selectGeocodeLevel here (that clears county/city).
-      onChange(patchGeocodeLevel(selectionRef.current, level, enriched));
+      commit(patchGeocodeLevel(selectionRef.current, level, enriched));
     });
   };
 
   const selectCountryWithBox = (c: CountryOption) => {
-    let next = setCountry(selection, c);
+    let next = setCountry(selectionRef.current, c);
     if (
       typeof c.lat === "number" &&
       typeof c.lng === "number" &&
@@ -120,7 +134,7 @@ export function LocationHierarchy({ selection, onChange }: Props) {
         },
       };
     }
-    onChange(next);
+    commit(next);
     if (typeof c.lat !== "number" || typeof c.lng !== "number") {
       return;
     }
@@ -139,7 +153,7 @@ export function LocationHierarchy({ selection, onChange }: Props) {
         return;
       }
       // Patch only — setCountry would wipe region/county/city.
-      onChange(
+      commit(
         patchCountry(selectionRef.current, {
           code: c.code,
           name: c.name,
@@ -218,7 +232,7 @@ export function LocationHierarchy({ selection, onChange }: Props) {
           setCountryOpen(false);
         }}
         onClear={() => {
-          onChange(setCountry(selection, undefined));
+          commit(setCountry(selectionRef.current, undefined));
           setCountryQuery("");
         }}
       />
@@ -233,8 +247,8 @@ export function LocationHierarchy({ selection, onChange }: Props) {
         disabledHint="Select a country first"
         emptyHint="No regions found for this country"
         onSelect={(opt) => selectDivision("region", opt)}
-        onSkip={() => onChange(skipLevel(selection, "region"))}
-        onClear={() => onChange(skipLevel(selection, "region"))}
+        onSkip={() => commit(skipLevel(selectionRef.current, "region"))}
+        onClear={() => commit(skipLevel(selectionRef.current, "region"))}
       />
 
       {selection.country && hasStaticCountyList(selection.country.code) ? (
@@ -248,8 +262,8 @@ export function LocationHierarchy({ selection, onChange }: Props) {
           disabledHint="Select a region / state first"
           emptyHint="No counties for this state — Skip or pick another state"
           onSelect={(opt) => selectDivision("county", opt)}
-          onSkip={() => onChange(skipLevel(selection, "county"))}
-          onClear={() => onChange(skipLevel(selection, "county"))}
+          onSkip={() => commit(skipLevel(selectionRef.current, "county"))}
+          onClear={() => commit(skipLevel(selectionRef.current, "county"))}
         />
       ) : (
         <NominatimDivisionField
@@ -262,16 +276,16 @@ export function LocationHierarchy({ selection, onChange }: Props) {
           disabled={!selection.country}
           note="Full county lists ship for the US. Elsewhere, search Nominatim or Skip."
           onSelect={(result) =>
-            onChange(
+            commit(
               selectGeocodeLevel(
-                selection,
+                selectionRef.current,
                 "county",
                 ensureBoundingBox(result, "county"),
               ),
             )
           }
-          onSkip={() => onChange(skipLevel(selection, "county"))}
-          onClear={() => onChange(skipLevel(selection, "county"))}
+          onSkip={() => commit(skipLevel(selectionRef.current, "county"))}
+          onClear={() => commit(skipLevel(selectionRef.current, "county"))}
         />
       )}
 
@@ -289,8 +303,8 @@ export function LocationHierarchy({ selection, onChange }: Props) {
             : "No cities found — pick a region first for a shorter list"
         }
         onSelect={(opt) => selectDivision("city", opt)}
-        onSkip={() => onChange(skipLevel(selection, "city"))}
-        onClear={() => onChange(skipLevel(selection, "city"))}
+        onSkip={() => commit(skipLevel(selectionRef.current, "city"))}
+        onClear={() => commit(skipLevel(selectionRef.current, "city"))}
       />
     </section>
   );

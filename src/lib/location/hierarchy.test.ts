@@ -124,6 +124,49 @@ describe("hierarchy invalidate / reset", () => {
     expect(next).toEqual(fullSelection());
   });
 
+  it("sync-ref commit keeps county when a late region enrich patches", () => {
+    // Mirrors LocationHierarchy: commit() writes selectionRef before onChange.
+    // Without that, a Nominatim region enrich can land on a stale ref and wipe
+    // a county the user just picked.
+    const ref = {
+      current: {
+        country: { code: "US", name: "United States of America" },
+        region,
+      } as LocationSelection,
+    };
+
+    const withCounty = selectGeocodeLevel(ref.current, "county", county);
+    ref.current = withCounty;
+
+    const enrichedRegion: GeocodeResult = {
+      ...region,
+      lat: 37.2,
+      lng: -119.5,
+      boundingBox: [32.5, 42.0, -124.5, -114.1],
+      displayName: "California, United States",
+    };
+    const afterEnrich = patchGeocodeLevel(ref.current, "region", enrichedRegion);
+    expect(afterEnrich.county?.displayName).toBe("Los Angeles County");
+    expect(afterEnrich.region?.boundingBox).toEqual([
+      32.5, 42.0, -124.5, -114.1,
+    ]);
+  });
+
+  it("stale ref without sync commit would drop county on region patch", () => {
+    const staleParent: LocationSelection = {
+      country: { code: "US", name: "United States of America" },
+      region,
+    };
+    const withCounty = selectGeocodeLevel(staleParent, "county", county);
+    expect(withCounty.county).toBeDefined();
+    // Enrich still holds the pre-county snapshot (bug if selectionRef lags).
+    const wiped = patchGeocodeLevel(staleParent, "region", {
+      ...region,
+      boundingBox: [32.5, 42.0, -124.5, -114.1],
+    });
+    expect(wiped.county).toBeUndefined();
+  });
+
   it("patchCountry keeps region/county/city", () => {
     const next = patchCountry(fullSelection(), {
       code: "US",
