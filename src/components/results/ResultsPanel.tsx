@@ -148,7 +148,7 @@ export function ResultsPanel({
                         : "border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--surface-2)]"
                     }`}
                     aria-pressed={active}
-                    onClick={() => onSelect(active ? null : place.id)}
+                    onClick={() => onSelect(place.id)}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-2 font-medium text-[var(--ink)]">

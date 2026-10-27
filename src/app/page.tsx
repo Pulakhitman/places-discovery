@@ -15,8 +15,8 @@ export default function HomePage() {
             Places Discovery
           </p>
           <p className="mt-1 max-w-xl text-sm text-[var(--muted)] sm:text-base">
-            One map. Hierarchical areas. Open data first — Google Places later,
-            official APIs only.
+            One map. Hierarchical areas. OpenStreetMap discovery, with optional
+            Google Places details via official APIs only.
           </p>
         </div>
       </header>
@@ -27,7 +27,8 @@ export default function HomePage() {
       </main>
 
       <footer className="mx-auto w-full max-w-7xl px-4 pb-6 text-xs text-[var(--muted)] sm:px-6">
-        Map data © OpenStreetMap contributors. No Google Maps HTML scraping.
+        Map data © OpenStreetMap contributors. Google content is display-only
+        when enabled. No HTML scraping.
       </footer>
     </div>
   );

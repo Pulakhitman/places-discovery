@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
   GoogleLookupResponse,
   GooglePlaceDetails,
@@ -46,8 +46,35 @@ function PlaceDetailDrawerInner({
   place: OsmPlace;
   onClose: () => void;
 }) {
+  const titleId = useId();
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [google, setGoogle] = useState<GoogleState>({ status: "loading" });
   const [configuredHint, setConfiguredHint] = useState<string | null>(null);
+
+  const retryGoogle = useCallback(() => {
+    setGoogle({ status: "loading" });
+    setRetryNonce((n) => n + 1);
+  }, []);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,7 +150,7 @@ function PlaceDetailDrawerInner({
       cancelled = true;
       controller.abort();
     };
-  }, [place.name, place.lat, place.lng]);
+  }, [place.name, place.lat, place.lng, retryNonce]);
 
   return (
     <div
@@ -135,7 +162,7 @@ function PlaceDetailDrawerInner({
         className="flex h-full w-full max-w-md flex-col border-l border-[var(--line)] bg-[var(--surface)] shadow-2xl"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="place-detail-title"
+        aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-start gap-3 border-b border-[var(--line)] px-4 py-3">
@@ -144,7 +171,7 @@ function PlaceDetailDrawerInner({
           </span>
           <div className="min-w-0 flex-1">
             <h2
-              id="place-detail-title"
+              id={titleId}
               className="truncate text-lg font-semibold text-[var(--ink)]"
             >
               {place.name}
@@ -154,6 +181,7 @@ function PlaceDetailDrawerInner({
             </p>
           </div>
           <button
+            ref={closeRef}
             type="button"
             className="rounded-md px-2 py-1 text-sm text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
             onClick={onClose}
@@ -214,9 +242,18 @@ function PlaceDetailDrawerInner({
             )}
 
             {google.status === "error" && (
-              <p className="mt-2 text-sm text-[var(--danger)]" role="alert">
-                {google.message}
-              </p>
+              <div className="mt-2" role="alert">
+                <p className="text-sm text-[var(--danger)]">{google.message}</p>
+                {google.retryable ? (
+                  <button
+                    type="button"
+                    className="mt-2 text-sm font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                    onClick={retryGoogle}
+                  >
+                    Retry Google lookup
+                  </button>
+                ) : null}
+              </div>
             )}
 
             {google.status === "ok" && (
@@ -227,6 +264,7 @@ function PlaceDetailDrawerInner({
           <p className="text-[11px] leading-relaxed text-[var(--muted)]">
             Google content is display-only with required attribution and is
             never included in exports. Official Places API only — no scraping.
+            Press Esc to close.
           </p>
         </div>
       </aside>

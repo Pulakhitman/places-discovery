@@ -71,6 +71,7 @@ type Props = {
   selectedPlaceId?: string | null;
   onCenterChange: (center: MapCenter) => void;
   onSelectPlace?: (id: string | null) => void;
+  onOpenDetails?: () => void;
 };
 
 function MapInvalidateSize() {
@@ -254,6 +255,7 @@ export function MapWorkspace({
   selectedPlaceId = null,
   onCenterChange,
   onSelectPlace,
+  onOpenDetails,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
   const fitSearchAreaRef = useRef<(() => void) | null>(null);
@@ -375,7 +377,7 @@ export function MapWorkspace({
               eventHandlers={{
                 click: (e) => {
                   L.DomEvent.stopPropagation(e.originalEvent);
-                  onSelectPlace?.(active ? null : place.id);
+                  onSelectPlace?.(place.id);
                 },
               }}
               title={place.name}
@@ -405,13 +407,22 @@ export function MapWorkspace({
               {selectedPlace.address ? ` · ${selectedPlace.address}` : ""}
             </p>
           </div>
-          <button
-            type="button"
-            className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
-            onClick={() => onSelectPlace?.(null)}
-          >
-            Clear
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              className="rounded-md px-2 py-1 text-xs font-semibold text-[var(--accent)] hover:bg-[var(--surface-2)]"
+              onClick={() => onOpenDetails?.()}
+            >
+              Details
+            </button>
+            <button
+              type="button"
+              className="rounded-md px-2 py-1 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+              onClick={() => onSelectPlace?.(null)}
+            >
+              Clear
+            </button>
+          </div>
         </div>
       )}
 

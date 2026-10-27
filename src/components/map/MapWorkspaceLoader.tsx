@@ -30,6 +30,7 @@ type Props = {
   selectedPlaceId?: string | null;
   onCenterChange: (center: MapCenter) => void;
   onSelectPlace?: (id: string | null) => void;
+  onOpenDetails?: () => void;
 };
 
 export function MapWorkspaceLoader(props: Props) {

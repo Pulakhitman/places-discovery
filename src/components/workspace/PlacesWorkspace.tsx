@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PlaceDetailDrawer } from "@/components/details/PlaceDetailDrawer";
 import { LocationHierarchy } from "@/components/location/LocationHierarchy";
 import { MapWorkspaceLoader } from "@/components/map/MapWorkspaceLoader";
@@ -11,6 +11,7 @@ import {
 import { SearchControls } from "@/components/search/SearchControls";
 import { mapFocusFromSelection } from "@/lib/location/hierarchy";
 import type { LocationSelection, MapCenter } from "@/lib/location/types";
+import type { GoogleStatusResponse } from "@/lib/places/google-types";
 import type {
   FieldCoverage,
   OsmPlace,
@@ -29,6 +30,9 @@ export function PlacesWorkspace() {
   const [places, setPlaces] = useState<OsmPlace[]>([]);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [googleConfigured, setGoogleConfigured] = useState<boolean | null>(
+    null,
+  );
 
   const focus = useMemo(() => mapFocusFromSelection(selection), [selection]);
   const mapCenter = center ?? focus.center;
@@ -70,8 +74,34 @@ export function PlacesWorkspace() {
     setDetailOpen(false);
   }, []);
 
+  const handleOpenDetail = useCallback(() => {
+    if (selectedPlaceId) {
+      setDetailOpen(true);
+    }
+  }, [selectedPlaceId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/places/google/status");
+        const data = (await res.json()) as GoogleStatusResponse;
+        if (!cancelled) {
+          setGoogleConfigured(data.configured);
+        }
+      } catch {
+        if (!cancelled) {
+          setGoogleConfigured(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const runSearch = useCallback(async () => {
-    if (!center) {
+    if (!mapCenter) {
       return;
     }
 
@@ -84,8 +114,8 @@ export function PlacesWorkspace() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          lat: center.lat,
-          lng: center.lng,
+          lat: mapCenter.lat,
+          lng: mapCenter.lng,
           radiusKm,
           category,
           customKeyword:
@@ -148,7 +178,7 @@ export function PlacesWorkspace() {
         retryable: true,
       });
     }
-  }, [center, radiusKm, category, customKeyword]);
+  }, [mapCenter, radiusKm, category, customKeyword]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:gap-6">
@@ -164,6 +194,7 @@ export function PlacesWorkspace() {
           selectedPlaceId={selectedPlaceId}
           onCenterChange={setCenter}
           onSelectPlace={handleSelectPlace}
+          onOpenDetails={handleOpenDetail}
         />
       </div>
 
@@ -184,6 +215,20 @@ export function PlacesWorkspace() {
           onSearch={() => void runSearch()}
           disabled={!mapCenter}
         />
+        {googleConfigured !== null && (
+          <p
+            className={`rounded-md border px-3 py-2 text-xs ${
+              googleConfigured
+                ? "border-[var(--accent)]/30 bg-[color-mix(in_oklab,var(--accent)_8%,transparent)] text-[var(--ink)]"
+                : "border-[var(--line)] bg-[var(--surface-2)] text-[var(--muted)]"
+            }`}
+            role="status"
+          >
+            {googleConfigured
+              ? "Google Places details: on — tap a result for hours, ratings, and reviews."
+              : "Google Places details: off — set GOOGLE_MAPS_API_KEY in .env to enable."}
+          </p>
+        )}
         <hr className="border-[var(--line)]" />
         <ResultsPanel
           state={searchState}

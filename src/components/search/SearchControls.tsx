@@ -42,8 +42,8 @@ export function SearchControls({
           Search
         </h2>
         <p className="text-sm text-[var(--muted)]">
-          Find OpenStreetMap places around the map center by category and
-          radius.
+          Find OpenStreetMap places around the map center. Tap a result for
+          Google hours, ratings, and reviews when configured.
         </p>
       </div>
 
@@ -109,6 +109,12 @@ export function SearchControls({
             className="field"
             value={customKeyword}
             onChange={(e) => onCustomKeywordChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !disabled && !loading && !customMissing) {
+                e.preventDefault();
+                onSearch();
+              }
+            }}
             placeholder="e.g. bakery, clinic…"
             autoComplete="off"
           />
@@ -124,8 +130,8 @@ export function SearchControls({
         {loading ? "Searching…" : "Search nearby"}
       </button>
       <p className="text-xs text-[var(--muted)]">
-        Source: OpenStreetMap via Overpass. No scrapers. Google Places comes in
-        a later step.
+        Source: OpenStreetMap via Overpass. Google details use the official
+        Places API only (no scraping).
       </p>
     </section>
   );
