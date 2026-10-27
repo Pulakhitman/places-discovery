@@ -5,6 +5,8 @@ export type CountryOption = {
   name: string;
   lat?: number;
   lng?: number;
+  /** Nominatim [south, north, west, east] when known or synthesized. */
+  boundingBox?: [number, number, number, number];
 };
 
 export type GeocodeResult = {

@@ -1,5 +1,6 @@
 import { City, State } from "country-state-city";
 import { getCountyByState } from "@nickgraffis/us-counties";
+import { ensureBoundingBox, type DivisionLevel } from "./bbox";
 import type { GeocodeResult } from "./types";
 
 export type DivisionOption = {
@@ -17,15 +18,21 @@ function parseCoord(value: string | null | undefined, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-export function toGeocodeResult(option: DivisionOption): GeocodeResult {
-  return {
-    id: option.id,
-    displayName: option.name,
-    lat: option.lat,
-    lng: option.lng,
-    adminCode: option.adminCode,
-    type: "division",
-  };
+export function toGeocodeResult(
+  option: DivisionOption,
+  level: DivisionLevel = "city",
+): GeocodeResult {
+  return ensureBoundingBox(
+    {
+      id: option.id,
+      displayName: option.name,
+      lat: option.lat,
+      lng: option.lng,
+      adminCode: option.adminCode,
+      type: "division",
+    },
+    level,
+  );
 }
 
 export function getRegionsForCountry(countryCode: string): DivisionOption[] {

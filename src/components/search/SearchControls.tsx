@@ -159,9 +159,9 @@ export function SearchControls({
               role="status"
             >
               {!hasAreaBBox
-                ? "Pick a city, county, or region above (needs a map box from geocoding)."
+                ? "No searchable map box yet — select a country, region, county, or city above. Local lists get an approximate box; Nominatim fills a tighter one when available."
                 : areaTooLarge
-                  ? `Area is too large for Overpass (max ~${MAX_AREA_SPAN_KM} km). Zoom into a smaller place or use radius.`
+                  ? `Area is too large for Overpass (max ~${MAX_AREA_SPAN_KM} km on a side). Pick a smaller city/county, or use radius search.`
                   : areaLabel
                     ? areaLabel
                     : "Area ready"}

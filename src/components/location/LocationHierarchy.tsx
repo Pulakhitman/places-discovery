@@ -3,6 +3,11 @@
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { filterCountries, getAllCountries } from "@/lib/location/countries";
 import {
+  bboxFromCenter,
+  DIVISION_BBOX_RADIUS_KM,
+  ensureBoundingBox,
+} from "@/lib/location/bbox";
+import {
   filterDivisions,
   getCitiesForSelection,
   getCountiesForRegion,
@@ -11,6 +16,7 @@ import {
   toGeocodeResult,
   type DivisionOption,
 } from "@/lib/location/divisions";
+import { enrichGeocodeBoundingBox } from "@/lib/location/enrich-bbox";
 import {
   breadcrumbLabels,
   selectGeocodeLevel,
@@ -63,6 +69,85 @@ export function LocationHierarchy({ selection, onChange }: Props) {
   }, [selection.country, selection.region]);
 
   const crumbs = breadcrumbLabels(selection);
+
+  const selectDivision = (
+    level: "region" | "county" | "city",
+    opt: DivisionOption,
+  ) => {
+    const immediate = toGeocodeResult(opt, level);
+    onChange(selectGeocodeLevel(selection, level, immediate));
+    const countryCode = selection.country?.code;
+    void enrichGeocodeBoundingBox({
+      result: immediate,
+      level,
+      countryCode,
+    }).then((enriched) => {
+      if (!enriched.boundingBox) {
+        return;
+      }
+      if (
+        JSON.stringify(enriched.boundingBox) ===
+        JSON.stringify(immediate.boundingBox)
+      ) {
+        return;
+      }
+      onChange(
+        selectGeocodeLevel(
+          { ...selection, [level]: immediate },
+          level,
+          enriched,
+        ),
+      );
+    });
+  };
+
+  const selectCountryWithBox = (c: CountryOption) => {
+    let next = setCountry(selection, c);
+    if (
+      typeof c.lat === "number" &&
+      typeof c.lng === "number" &&
+      next.country
+    ) {
+      next = {
+        ...next,
+        country: {
+          ...next.country,
+          boundingBox:
+            c.boundingBox ??
+            bboxFromCenter(c.lat, c.lng, DIVISION_BBOX_RADIUS_KM.country),
+        },
+      };
+    }
+    onChange(next);
+    if (typeof c.lat !== "number" || typeof c.lng !== "number") {
+      return;
+    }
+    void enrichGeocodeBoundingBox({
+      result: {
+        id: `country:${c.code}`,
+        displayName: c.name,
+        lat: c.lat,
+        lng: c.lng,
+        boundingBox: next.country?.boundingBox,
+      },
+      level: "country",
+      countryCode: c.code,
+    }).then((enriched) => {
+      if (!enriched.boundingBox) {
+        return;
+      }
+      onChange({
+        ...setCountry(selection, c),
+        country: {
+          code: c.code,
+          name: c.name,
+          lat: enriched.lat,
+          lng: enriched.lng,
+          boundingBox: enriched.boundingBox,
+        },
+      });
+    });
+  };
 
   return (
     <section
@@ -126,7 +211,7 @@ export function LocationHierarchy({ selection, onChange }: Props) {
         }}
         onClose={() => setCountryOpen(false)}
         onSelect={(c) => {
-          onChange(setCountry(selection, c));
+          selectCountryWithBox(c);
           setCountryQuery(c.name);
           setCountryOpen(false);
         }}
@@ -145,9 +230,7 @@ export function LocationHierarchy({ selection, onChange }: Props) {
         disabled={!selection.country}
         disabledHint="Select a country first"
         emptyHint="No regions found for this country"
-        onSelect={(opt) =>
-          onChange(selectGeocodeLevel(selection, "region", toGeocodeResult(opt)))
-        }
+        onSelect={(opt) => selectDivision("region", opt)}
         onSkip={() => onChange(skipLevel(selection, "region"))}
         onClear={() => onChange(skipLevel(selection, "region"))}
       />
@@ -162,11 +245,7 @@ export function LocationHierarchy({ selection, onChange }: Props) {
           disabled={!selection.region}
           disabledHint="Select a region / state first"
           emptyHint="No counties for this state — Skip or pick another state"
-          onSelect={(opt) =>
-            onChange(
-              selectGeocodeLevel(selection, "county", toGeocodeResult(opt)),
-            )
-          }
+          onSelect={(opt) => selectDivision("county", opt)}
           onSkip={() => onChange(skipLevel(selection, "county"))}
           onClear={() => onChange(skipLevel(selection, "county"))}
         />
@@ -181,7 +260,13 @@ export function LocationHierarchy({ selection, onChange }: Props) {
           disabled={!selection.country}
           note="Full county lists ship for the US. Elsewhere, search Nominatim or Skip."
           onSelect={(result) =>
-            onChange(selectGeocodeLevel(selection, "county", result))
+            onChange(
+              selectGeocodeLevel(
+                selection,
+                "county",
+                ensureBoundingBox(result, "county"),
+              ),
+            )
           }
           onSkip={() => onChange(skipLevel(selection, "county"))}
           onClear={() => onChange(skipLevel(selection, "county"))}
@@ -201,9 +286,7 @@ export function LocationHierarchy({ selection, onChange }: Props) {
             ? "No cities for this region in the local list"
             : "No cities found — pick a region first for a shorter list"
         }
-        onSelect={(opt) =>
-          onChange(selectGeocodeLevel(selection, "city", toGeocodeResult(opt)))
-        }
+        onSelect={(opt) => selectDivision("city", opt)}
         onSkip={() => onChange(skipLevel(selection, "city"))}
         onClear={() => onChange(skipLevel(selection, "city"))}
       />

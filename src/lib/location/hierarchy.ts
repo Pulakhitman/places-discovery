@@ -154,6 +154,7 @@ export function mapFocusFromSelection(selection: LocationSelection): {
   ) {
     return {
       center: { lat: selection.country.lat, lng: selection.country.lng },
+      boundingBox: selection.country.boundingBox,
       zoom: 5,
     };
   }
