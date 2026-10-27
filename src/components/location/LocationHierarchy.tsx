@@ -227,8 +227,9 @@ export function LocationHierarchy({ selection, onChange }: Props) {
           Area
         </h2>
         <p className="text-sm text-[var(--muted)]">
-          Browse full dropdown lists for country, region/state, county (US), and
-          city. Nothing is auto-selected — pick an option, or Skip a level.
+          Pick country → region/state → county (US) → city. After a county is
+          chosen, the city list narrows to that county. Nothing is auto-selected —
+          pick an option, or Skip a level.
         </p>
       </div>
 
@@ -323,7 +324,7 @@ export function LocationHierarchy({ selection, onChange }: Props) {
           country={selection.country}
           selected={selection.county}
           disabled={!selection.country}
-          note="Full county lists ship for the US. Elsewhere, search Nominatim or Skip."
+          note="US states include a full county list. For other countries, search by name or Skip."
           onSelect={(result) =>
             commit(
               selectGeocodeLevel(
@@ -350,7 +351,7 @@ export function LocationHierarchy({ selection, onChange }: Props) {
           selected={selection.city}
           disabled={!selection.country}
           parentContext={nonUsCityParentContext}
-          note="Search cities inside the selected county (Nominatim)."
+          note="Type a city name — results stay inside the selected county."
           onSelect={(result) =>
             commit(
               selectGeocodeLevel(
@@ -372,14 +373,26 @@ export function LocationHierarchy({ selection, onChange }: Props) {
           selected={selection.city}
           disabled={!selection.country}
           disabledHint="Select a country first"
+          optionsLabel={
+            countyCitiesPending
+              ? "Finding cities…"
+              : selection.county
+                ? `${cities.length} in this county`
+                : undefined
+          }
+          statusHint={
+            countyCitiesPending
+              ? "Matching cities to this county — usually under a second."
+              : undefined
+          }
           emptyHint={
             selection.county
               ? countyCitiesPending
-                ? "Locating county — city list updates when the map box is ready"
-                : "No cities in this county in the local list"
+                ? "Cities appear here once the county map box is ready"
+                : "No cities found for this county in the local list"
               : selection.region
                 ? "No cities for this region in the local list"
-                : "No cities found — pick a region first for a shorter list"
+                : "Pick a region first for a shorter city list"
           }
           onSelect={(opt) => selectDivision("city", opt)}
           onSkip={() => commit(skipLevel(selectionRef.current, "city"))}
@@ -527,6 +540,8 @@ function StaticDivisionField({
   disabled,
   disabledHint,
   emptyHint,
+  optionsLabel,
+  statusHint,
   onSelect,
   onSkip,
   onClear,
@@ -538,6 +553,10 @@ function StaticDivisionField({
   disabled?: boolean;
   disabledHint: string;
   emptyHint: string;
+  /** Overrides the default “N options” header count. */
+  optionsLabel?: string;
+  /** Shown under the field while the list is empty for a temporary reason. */
+  statusHint?: string;
   onSelect: (option: DivisionOption) => void;
   onSkip: () => void;
   onClear: () => void;
@@ -549,6 +568,7 @@ function StaticDivisionField({
     () => filterDivisions(query, options),
     [query, options],
   );
+  const countLabel = optionsLabel ?? `${options.length} options`;
 
   return (
     <div className="relative">
@@ -561,9 +581,7 @@ function StaticDivisionField({
         </label>
         <div className="flex items-center gap-2">
           {!disabled && (
-            <span className="text-xs text-[var(--muted)]">
-              {options.length} options
-            </span>
+            <span className="text-xs text-[var(--muted)]">{countLabel}</span>
           )}
           {!disabled && (
             <button
@@ -602,7 +620,13 @@ function StaticDivisionField({
               aria-autocomplete="list"
               autoComplete="off"
               disabled={disabled}
-              placeholder={disabled ? disabledHint : `Browse all ${label.toLowerCase()}s…`}
+              placeholder={
+                disabled
+                  ? disabledHint
+                  : options.length === 0 && statusHint
+                    ? emptyHint
+                    : `Browse all ${label.toLowerCase()}s…`
+              }
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -640,6 +664,12 @@ function StaticDivisionField({
               {open ? "Hide" : "List"}
             </button>
           </div>
+
+          {statusHint && !selected ? (
+            <p className="mt-1 text-xs text-[var(--muted)]" role="status">
+              {statusHint}
+            </p>
+          ) : null}
 
           {open && !disabled && (
             <ul

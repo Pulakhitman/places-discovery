@@ -86,6 +86,7 @@ describe("getCitiesForSelection county filter", () => {
     expect(cities.some((c) => c.name === "Los Angeles")).toBe(true);
     expect(cities.some((c) => c.name === "San Francisco")).toBe(false);
     expect(cities.some((c) => c.name === "Fresno")).toBe(false);
+    expect(cities.some((c) => /county$/i.test(c.name))).toBe(false);
   });
 });
 

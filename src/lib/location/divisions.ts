@@ -164,9 +164,13 @@ export function getCitiesForSelection(
     return [];
   }
 
-  return options.filter((city) =>
-    pointInNominatimBBox(city.lat, city.lng, box),
-  );
+  return options.filter((city) => {
+    // CSC sometimes includes admin rows like "Los Angeles County" as cities.
+    if (city.name.toLowerCase().endsWith(" county")) {
+      return false;
+    }
+    return pointInNominatimBBox(city.lat, city.lng, box);
+  });
 }
 
 /** True when a selected city still lies inside the selected county box. */
