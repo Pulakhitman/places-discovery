@@ -1,5 +1,6 @@
 import type { PlaceCategoryId } from "@/lib/search/categories";
 import { categoryLabel } from "@/lib/search/overpass-queries";
+import { resolvePlaceName } from "./place-name";
 import type { OsmPlace } from "./types";
 
 export type OverpassElement = {
@@ -80,19 +81,9 @@ function pickHours(tags: Record<string, string>): string | undefined {
   return tags.opening_hours?.trim() || undefined;
 }
 
-function pickName(tags: Record<string, string>, fallback: string): string {
-  return (
-    tags.name?.trim() ||
-    tags["name:en"]?.trim() ||
-    tags.brand?.trim() ||
-    tags.operator?.trim() ||
-    fallback
-  );
-}
-
 /**
  * Map Overpass elements to OsmPlace records. Drops elements without coordinates.
- * Sorted by distance ascending. Never invents ratings/reviews.
+ * Named places first, then by distance. Never invents ratings/reviews.
  */
 export function parseOverpassElements(
   elements: OverpassElement[],
@@ -103,6 +94,7 @@ export function parseOverpassElements(
 ): OsmPlace[] {
   const places: OsmPlace[] = [];
   const seen = new Set<string>();
+  const namedFlags = new Map<string, boolean>();
 
   for (const el of elements) {
     const coords = elementCoords(el);
@@ -116,6 +108,8 @@ export function parseOverpassElements(
     seen.add(id);
 
     const tags = el.tags ?? {};
+    const { name, isUnnamed } = resolvePlaceName(tags, params.categoryId);
+    namedFlags.set(id, !isUnnamed);
     const distanceM = Math.round(
       haversineM(params.center.lat, params.center.lng, coords.lat, coords.lng),
     );
@@ -124,7 +118,8 @@ export function parseOverpassElements(
       id,
       osmType: el.type,
       osmId: el.id,
-      name: pickName(tags, `${el.type}/${el.id}`),
+      name,
+      isUnnamed,
       categoryId: params.categoryId,
       categoryLabel: categoryLabel(params.categoryId),
       lat: coords.lat,
@@ -139,6 +134,13 @@ export function parseOverpassElements(
     });
   }
 
-  places.sort((a, b) => a.distanceM - b.distanceM);
+  places.sort((a, b) => {
+    const aNamed = namedFlags.get(a.id) ? 0 : 1;
+    const bNamed = namedFlags.get(b.id) ? 0 : 1;
+    if (aNamed !== bNamed) {
+      return aNamed - bNamed;
+    }
+    return a.distanceM - b.distanceM;
+  });
   return places;
 }

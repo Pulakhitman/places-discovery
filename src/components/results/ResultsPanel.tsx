@@ -2,6 +2,7 @@
 
 import type { FieldCoverage, OsmPlace, PlacesSearchSuccess } from "@/lib/places/types";
 import type { PlaceCategoryId, SearchRadiusKm } from "@/lib/search/categories";
+import { CategoryIcon } from "@/lib/search/category-icons";
 import { ResultsPlaceholders } from "./ResultsPlaceholders";
 
 type SearchState =
@@ -150,24 +151,32 @@ export function ResultsPanel({
                     onClick={() => onSelect(active ? null : place.id)}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className="font-medium text-[var(--ink)]">
-                        {place.name}
+                      <span className="flex min-w-0 items-center gap-2 font-medium text-[var(--ink)]">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)] text-[var(--accent)] ring-1 ring-[var(--line)]">
+                          <CategoryIcon category={place.categoryId} />
+                        </span>
+                        <span
+                          className={`truncate ${place.isUnnamed ? "italic text-[var(--muted)]" : ""}`}
+                          title={place.name}
+                        >
+                          {place.name}
+                        </span>
                       </span>
                       <span className="shrink-0 text-xs text-[var(--muted)]">
                         {formatDistance(place.distanceM)}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-xs text-[var(--muted)]">
+                    <p className="mt-1 pl-10 text-xs text-[var(--muted)]">
                       {place.categoryLabel} · OSM
                     </p>
-                    <p className="mt-1 text-sm text-[var(--ink)]">
+                    <p className="mt-1 pl-10 text-sm text-[var(--ink)]">
                       {place.address ?? (
                         <span className="text-[var(--muted)]">
                           Address not tagged
                         </span>
                       )}
                     </p>
-                    <dl className="mt-2 grid gap-1 text-xs text-[var(--muted)]">
+                    <dl className="mt-2 grid gap-1 pl-10 text-xs text-[var(--muted)]">
                       <div>
                         <dt className="inline font-medium text-[var(--ink)]">
                           Hours:{" "}

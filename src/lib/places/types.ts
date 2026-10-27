@@ -7,6 +7,8 @@ export type OsmPlace = {
   osmType: "node" | "way" | "relation";
   osmId: number;
   name: string;
+  /** True when OSM had no name/brand/operator and we synthesized a label. */
+  isUnnamed: boolean;
   categoryId: PlaceCategoryId;
   categoryLabel: string;
   lat: number;

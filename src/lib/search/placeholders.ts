@@ -8,6 +8,7 @@ export type ResultPlaceholderCard = {
   hours: string;
   website: string;
   phone: string;
+  category: PlaceCategoryId;
 };
 
 const CATEGORY_SAMPLES: Record<
@@ -16,43 +17,59 @@ const CATEGORY_SAMPLES: Record<
 > = {
   parks: {
     what: "parks and gardens",
-    addressHint: "Park entrance or garden path",
-    titles: ["Neighborhood park", "City garden", "Riverside green"],
+    addressHint: "Park lane / garden entrance",
+    titles: [
+      "Riverside Park",
+      "Community Garden",
+      "Sunset Meadow Park",
+    ],
   },
   playgrounds: {
     what: "playgrounds",
     addressHint: "Play area near a park or school",
-    titles: ["Local playground", "Toddler play area", "Schoolyard play"],
+    titles: [
+      "Oak Street Playground",
+      "Little Explorers Play Area",
+      "Hilltop Playground",
+    ],
   },
   shops: {
     what: "shops",
-    addressHint: "Storefront address",
-    titles: ["Local shop", "Corner store", "Specialty retail"],
+    addressHint: "High street storefront",
+    titles: ["Corner Bookshop", "Maple Hardware", "Bluebird Boutique"],
   },
   supermarkets: {
     what: "supermarkets",
-    addressHint: "Grocery store address",
-    titles: ["Neighborhood market", "Grocery store", "Food hall"],
+    addressHint: "Grocery store entrance",
+    titles: ["Fresh Valley Market", "City Grocer", "Harbor Foods"],
   },
   cafes: {
     what: "cafés",
-    addressHint: "Café street address",
-    titles: ["Corner café", "Coffee shop", "Tea house"],
+    addressHint: "Café storefront",
+    titles: ["Morning Bean Café", "Willow Tea Room", "Harbor Roast"],
   },
   restaurants: {
     what: "restaurants",
-    addressHint: "Restaurant address",
-    titles: ["Neighborhood restaurant", "Family diner", "Local eatery"],
+    addressHint: "Restaurant entrance",
+    titles: ["Olive Table", "North Bridge Kitchen", "Lantern House"],
   },
   libraries: {
     what: "libraries",
-    addressHint: "Library branch address",
-    titles: ["Public library", "Branch library", "Reading room"],
+    addressHint: "Library branch entrance",
+    titles: [
+      "Central Public Library",
+      "Westside Branch Library",
+      "River Reading Room",
+    ],
   },
   schools: {
     what: "schools",
-    addressHint: "School campus address",
-    titles: ["Primary school", "Secondary school", "Community school"],
+    addressHint: "School main gate",
+    titles: [
+      "Greenfield Primary School",
+      "Lakeside Secondary School",
+      "Community Learning School",
+    ],
   },
 };
 
@@ -77,12 +94,16 @@ export function buildResultPlaceholders(
   if (category === "custom") {
     const kw = customKeyword?.trim() || "keyword";
     return [1, 2, 3].map((n) => ({
-      title: n === 1 ? `Match for “${kw}”` : `Match for “${kw}” (${n})`,
+      title:
+        n === 1
+          ? `${kw.charAt(0).toUpperCase()}${kw.slice(1)} spot`
+          : `${kw.charAt(0).toUpperCase()}${kw.slice(1)} spot ${n}`,
       subtitle: `Custom · within ${radiusKm} km`,
-      address: "Address when tagged in OSM",
+      address: "Street address when tagged in OSM",
       hours: "Opening hours when tagged",
       website: "Website when tagged",
       phone: "Phone when tagged",
+      category: "custom",
     }));
   }
 
@@ -94,5 +115,6 @@ export function buildResultPlaceholders(
     hours: "Opening hours when tagged",
     website: "Website when tagged",
     phone: "Phone when tagged",
+    category,
   }));
 }

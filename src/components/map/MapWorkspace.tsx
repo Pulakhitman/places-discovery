@@ -7,6 +7,7 @@ import {
   MapContainer,
   Marker,
   TileLayer,
+  Tooltip,
   useMap,
   useMapEvents,
 } from "react-leaflet";
@@ -256,7 +257,16 @@ export function MapWorkspace({
                   onSelectPlace?.(place.id);
                 },
               }}
-            />
+            >
+              <Tooltip
+                direction="top"
+                offset={[0, -8]}
+                opacity={0.95}
+                permanent={active}
+              >
+                {place.name}
+              </Tooltip>
+            </CircleMarker>
           );
         })}
       </MapContainer>

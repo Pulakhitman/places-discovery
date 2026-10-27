@@ -45,6 +45,7 @@ describe("parseOverpassElements", () => {
 
     expect(places).toHaveLength(2);
     expect(places[0]?.name).toBe("Near Garden");
+    expect(places[0]?.isUnnamed).toBe(false);
     expect(places[0]?.address).toContain("Market St");
     expect(places[0]?.website).toBe("https://example.org");
     expect(places[0]?.phone).toBe("+1 555 0100");
@@ -53,6 +54,46 @@ describe("parseOverpassElements", () => {
     expect(places[1]?.name).toBe("Far Park");
     expect(places[1]?.hours).toBe("Mo-Su 08:00-18:00");
     expect(places[0]!.distanceM).toBeLessThan(places[1]!.distanceM);
+  });
+
+  it("labels unnamed parks instead of way/id", () => {
+    const places = parseOverpassElements(
+      [
+        {
+          type: "way",
+          id: 99,
+          center: { lat: 37.77, lon: -122.42 },
+          tags: { leisure: "park" },
+        },
+      ],
+      { center, categoryId: "parks" },
+    );
+    expect(places[0]?.name).toBe("Unnamed park");
+    expect(places[0]?.isUnnamed).toBe(true);
+  });
+
+  it("sorts named places before unnamed", () => {
+    const places = parseOverpassElements(
+      [
+        {
+          type: "node",
+          id: 1,
+          lat: 37.77,
+          lon: -122.42,
+          tags: { leisure: "park" },
+        },
+        {
+          type: "node",
+          id: 2,
+          lat: 37.771,
+          lon: -122.42,
+          tags: { name: "Named Park", leisure: "park" },
+        },
+      ],
+      { center, categoryId: "parks" },
+    );
+    expect(places[0]?.name).toBe("Named Park");
+    expect(places[1]?.name).toBe("Unnamed park");
   });
 
   it("uses way center coordinates", () => {

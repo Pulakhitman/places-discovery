@@ -10,7 +10,13 @@ describe("result placeholders", () => {
     expect(cards).toHaveLength(3);
     expect(cards[0]?.subtitle).toContain("5 km");
     expect(cards[0]?.subtitle).toMatch(/Parks/i);
-    expect(cards[0]?.title.length).toBeGreaterThan(0);
+    expect(cards[0]?.title).toBe("Riverside Park");
+    expect(cards.map((c) => c.title)).toEqual([
+      "Riverside Park",
+      "Community Garden",
+      "Sunset Meadow Park",
+    ]);
+    expect(cards.every((c) => c.category === "parks")).toBe(true);
   });
 
   it("mentions custom keyword and radius in the blurb", () => {

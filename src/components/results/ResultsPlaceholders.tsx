@@ -1,6 +1,7 @@
 "use client";
 
 import type { PlaceCategoryId, SearchRadiusKm } from "@/lib/search/categories";
+import { CategoryIcon } from "@/lib/search/category-icons";
 import {
   buildResultPlaceholders,
   categorySearchBlurb,
@@ -30,11 +31,17 @@ export function ResultsPlaceholders({
       <div>
         <h2
           id="results-heading"
-          className="text-sm font-semibold tracking-wide text-[var(--ink)]"
+          className="flex items-center gap-2 text-sm font-semibold tracking-wide text-[var(--ink)]"
         >
-          {label} · {radiusKm} km · placeholders
+          <CategoryIcon
+            category={category}
+            className="text-[var(--accent)]"
+          />
+          <span>
+            {label} · {radiusKm} km · placeholders
+          </span>
         </h2>
-        <p className="text-xs text-[var(--muted)]">
+        <p className="mt-1 text-xs text-[var(--muted)]">
           {mode === "loading"
             ? `Searching OpenStreetMap for ${label.toLowerCase()} within ${radiusKm} km…`
             : categorySearchBlurb(category, radiusKm, customKeyword)}
@@ -53,7 +60,8 @@ export function ResultsPlaceholders({
 
       {hasCenter && mode === "idle" && (
         <p className="text-xs text-[var(--muted)]" role="status">
-          Press <span className="font-medium text-[var(--ink)]">Search nearby</span>{" "}
+          Press{" "}
+          <span className="font-medium text-[var(--ink)]">Search nearby</span>{" "}
           to load real {label.toLowerCase()} within {radiusKm} km.
         </p>
       )}
@@ -75,14 +83,23 @@ export function ResultsPlaceholders({
             }`}
           >
             <div className="flex items-start justify-between gap-2">
-              <span className="font-medium text-[var(--muted)]">{card.title}</span>
+              <span className="flex min-w-0 items-center gap-2 font-medium text-[var(--ink)]">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--accent)] ring-1 ring-[var(--line)]">
+                  <CategoryIcon category={card.category} />
+                </span>
+                <span className="truncate">{card.title}</span>
+              </span>
               <span className="shrink-0 text-xs text-[var(--muted)]">
                 ~{radiusKm} km
               </span>
             </div>
-            <p className="mt-0.5 text-xs text-[var(--muted)]">{card.subtitle}</p>
-            <p className="mt-1 text-sm text-[var(--muted)]">{card.address}</p>
-            <dl className="mt-2 grid gap-1 text-xs text-[var(--muted)]">
+            <p className="mt-1 pl-10 text-xs text-[var(--muted)]">
+              {card.subtitle}
+            </p>
+            <p className="mt-1 pl-10 text-sm text-[var(--muted)]">
+              {card.address}
+            </p>
+            <dl className="mt-2 grid gap-1 pl-10 text-xs text-[var(--muted)]">
               <div>
                 <dt className="inline font-medium">Hours: </dt>
                 <dd className="inline">{card.hours}</dd>
@@ -94,10 +111,6 @@ export function ResultsPlaceholders({
               <div>
                 <dt className="inline font-medium">Phone: </dt>
                 <dd className="inline">{card.phone}</dd>
-              </div>
-              <div>
-                <dt className="inline font-medium">Rating / reviews: </dt>
-                <dd className="inline">Not available from this source</dd>
               </div>
             </dl>
           </li>
