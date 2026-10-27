@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { PlaceDetailDrawer } from "@/components/details/PlaceDetailDrawer";
 import { LocationHierarchy } from "@/components/location/LocationHierarchy";
 import { MapWorkspaceLoader } from "@/components/map/MapWorkspaceLoader";
 import {
@@ -27,6 +28,7 @@ export function PlacesWorkspace() {
   const [searchState, setSearchState] = useState<SearchState>({ status: "idle" });
   const [places, setPlaces] = useState<OsmPlace[]>([]);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const focus = useMemo(() => mapFocusFromSelection(selection), [selection]);
   const mapCenter = center ?? focus.center;
@@ -46,12 +48,26 @@ export function PlacesWorkspace() {
     );
   }, [mapCenter, category, radiusKm, customKeyword, searchState.status]);
 
+  const selectedPlace = useMemo(
+    () => places.find((p) => p.id === selectedPlaceId) ?? null,
+    [places, selectedPlaceId],
+  );
+
   const handleSelectionChange = useCallback((next: LocationSelection) => {
     setSelection(next);
     const nextFocus = mapFocusFromSelection(next);
     if (nextFocus.center) {
       setCenter(nextFocus.center);
     }
+  }, []);
+
+  const handleSelectPlace = useCallback((id: string | null) => {
+    setSelectedPlaceId(id);
+    setDetailOpen(Boolean(id));
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setDetailOpen(false);
   }, []);
 
   const runSearch = useCallback(async () => {
@@ -61,6 +77,7 @@ export function PlacesWorkspace() {
 
     setSearchState({ status: "loading" });
     setSelectedPlaceId(null);
+    setDetailOpen(false);
 
     try {
       const res = await fetch("/api/places/search", {
@@ -146,7 +163,7 @@ export function PlacesWorkspace() {
           placeholders={mapPlaceholders}
           selectedPlaceId={selectedPlaceId}
           onCenterChange={setCenter}
-          onSelectPlace={setSelectedPlaceId}
+          onSelectPlace={handleSelectPlace}
         />
       </div>
 
@@ -171,7 +188,7 @@ export function PlacesWorkspace() {
         <ResultsPanel
           state={searchState}
           selectedId={selectedPlaceId}
-          onSelect={setSelectedPlaceId}
+          onSelect={handleSelectPlace}
           onRetry={() => void runSearch()}
           category={category}
           radiusKm={radiusKm}
@@ -185,6 +202,12 @@ export function PlacesWorkspace() {
             : "not set — pick a country/area or tap the map"}
         </p>
       </aside>
+
+      <PlaceDetailDrawer
+        place={selectedPlace}
+        open={detailOpen && Boolean(selectedPlace)}
+        onClose={handleCloseDetail}
+      />
     </div>
   );
 }

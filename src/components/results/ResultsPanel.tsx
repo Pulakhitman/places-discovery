@@ -218,7 +218,7 @@ export function ResultsPanel({
                           Rating / reviews:{" "}
                         </dt>
                         <dd className="inline">
-                          Not available from this source
+                          Select place for Google details
                         </dd>
                       </div>
                     </dl>
@@ -229,7 +229,7 @@ export function ResultsPanel({
           </ul>
           <p className="text-[11px] text-[var(--muted)]">
             Coverage varies by area. Data © OpenStreetMap contributors, ODbL.
-            Google ratings/reviews are not used in this step.
+            Tap a result to open details (Google hours/ratings when configured).
           </p>
         </>
       )}

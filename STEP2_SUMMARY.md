@@ -27,4 +27,4 @@ Google Places, compare drawer, CSV/JSON/HTML exports.
 
 ## What's next
 
-PD-3: Google Places search/details (hours, reviews via official API only).
+PD-3: Google Places search/details (hours, reviews via official API only) — see [`STEP3_SUMMARY.md`](./STEP3_SUMMARY.md).

@@ -35,7 +35,8 @@ See [`.env.example`](./.env.example). Important keys:
 | `NOMINATIM_URL` | Geocoding base URL (default public Nominatim) |
 | `OVERPASS_URL` | OSM Overpass interpreter (default public instance) |
 | `OVERPASS_TIMEOUT_MS` | Overpass client timeout (default 25000) |
-| `GOOGLE_MAPS_API_KEY` | Server Places API (New) — later steps |
+| `GOOGLE_MAPS_API_KEY` | Server Places API (New) — details drawer enrichment |
+| `GOOGLE_PLACES_TIMEOUT_MS` | Google Places client timeout (default 15000) |
 | `GOOGLE_MAPS_BROWSER_KEY` | Optional Maps JS in the same map container |
 | `DOMAIN`, `TRAEFIK_*` | Traefik / Docker labels |
 | `AUTH_USER`, `AUTH_PASSWORD` | Optional Basic Auth pair |
@@ -57,7 +58,8 @@ Compose uses `expose: ["3000"]` (no host `ports`) for Traefik. Health: `GET /api
 
 - **Step 1** — Scaffold, location hierarchy (full dropdowns), single Leaflet map. See [`STEP1_SUMMARY.md`](./STEP1_SUMMARY.md).
 - **Step 2** — Overpass nearby search, results list, markers + card sync, coverage. See [`STEP2_SUMMARY.md`](./STEP2_SUMMARY.md).
+- **Step 3** — Google Places details drawer (hours, ratings, reviews, photos via official API). See [`STEP3_SUMMARY.md`](./STEP3_SUMMARY.md).
 
 ## License / attribution
 
-OpenStreetMap data © OSM contributors (ODbL). Google content (when enabled later) is display-only with required attribution and is never exported.
+OpenStreetMap data © OSM contributors (ODbL). Google content (when enabled) is display-only with required attribution and is never exported.
