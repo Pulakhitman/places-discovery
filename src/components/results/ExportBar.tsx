@@ -42,7 +42,7 @@ export function ExportBar({ places, label = "Export (OSM only)" }: Props) {
         {places.length} place{places.length === 1 ? "" : "s"} · Google
         ratings/reviews are never included.
       </p>
-      <div className="mt-2 flex flex-wrap gap-2">
+      <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Export formats">
         <ExportButton
           label="CSV"
           disabled={disabled}
@@ -59,11 +59,13 @@ export function ExportBar({ places, label = "Export (OSM only)" }: Props) {
           onClick={() => exportAs("html")}
         />
       </div>
-      {flash ? (
-        <p className="mt-2 text-[11px] font-medium text-[var(--accent)]" role="status">
-          {flash}
-        </p>
-      ) : null}
+      <p
+        className="mt-2 min-h-[1rem] text-[11px] font-medium text-[var(--accent)]"
+        role="status"
+        aria-live="polite"
+      >
+        {flash ?? (disabled ? "No places to export (clear filters or search again)." : "\u00a0")}
+      </p>
     </section>
   );
 }

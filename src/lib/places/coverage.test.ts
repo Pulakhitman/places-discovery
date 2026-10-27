@@ -31,5 +31,7 @@ describe("computeOsmCoverage", () => {
     expect(coverage.withHours).toBe(1);
     expect(coverage.hoursPct).toBe(1);
     expect(coverage.websitePct).toBe(0);
+    expect(coverage.withNamed).toBe(300);
+    expect(coverage.namedPct).toBe(100);
   });
 });

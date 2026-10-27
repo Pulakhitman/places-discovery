@@ -201,6 +201,7 @@ export function SearchControls({
         className="btn-primary"
         disabled={searchDisabled}
         onClick={onSearch}
+        aria-describedby="search-hint"
       >
         {loading
           ? "Searching…"
@@ -208,7 +209,20 @@ export function SearchControls({
             ? "Search selected area"
             : "Search nearby"}
       </button>
-      <p className="text-xs text-[var(--muted)]">
+      {searchDisabled && !loading ? (
+        <p className="text-xs text-[var(--warn)]" role="status">
+          {customMissing
+            ? "Enter a custom keyword before searching."
+            : searchMode === "area" && !hasAreaBBox
+              ? "Select a country/region/county/city above so the map has a searchable area."
+              : searchMode === "area" && areaTooLarge
+                ? `Pick a smaller area (max ~${MAX_AREA_SPAN_KM} km on a side) or use radius search.`
+                : disabled
+                  ? "Set a map center (pick an area or tap the map) before searching."
+                  : null}
+        </p>
+      ) : null}
+      <p id="search-hint" className="text-xs text-[var(--muted)]">
         Source: OpenStreetMap via Overpass. Google details use the official
         Places API only (no scraping).
       </p>

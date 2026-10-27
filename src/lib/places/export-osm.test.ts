@@ -55,11 +55,15 @@ describe("OSM exports", () => {
     expect(json).not.toMatch(/"rating"/);
   });
 
-  it("builds HTML table", () => {
+  it("builds HTML report with coverage and disclaimer", () => {
     const html = placesToHtml([sample]);
     expect(html).toContain("<table>");
     expect(html).toContain("Dolores Park");
     expect(html).toContain("ODbL");
+    expect(html).toContain("Field coverage");
+    expect(html).toContain("Disclaimer");
+    expect(html).toContain("@media print");
+    expect(html).not.toMatch(/"rating"/);
   });
 
   it("picks mime and filename per format", () => {

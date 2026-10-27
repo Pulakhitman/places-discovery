@@ -9,6 +9,7 @@ import {
 import { PlaceDetailDrawer } from "@/components/details/PlaceDetailDrawer";
 import { LocationHierarchy } from "@/components/location/LocationHierarchy";
 import { MapWorkspaceLoader } from "@/components/map/MapWorkspaceLoader";
+import { GoogleUsagePanel } from "@/components/ops/GoogleUsagePanel";
 import { ExportBar } from "@/components/results/ExportBar";
 import { ResultFiltersBar } from "@/components/results/ResultFiltersBar";
 import {
@@ -35,6 +36,10 @@ import {
   loadSearchPrefs,
   saveSearchPrefs,
 } from "@/lib/places/prefs";
+import {
+  applyShareParamsToUrl,
+  parseShareSearchParams,
+} from "@/lib/places/share-url";
 import { sortPlaces, type PlaceSortId } from "@/lib/places/sort";
 import type {
   FieldCoverage,
@@ -78,6 +83,9 @@ export function PlacesWorkspace() {
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
   const [coordsCopied, setCoordsCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [usageRefresh, setUsageRefresh] = useState(0);
+  const shareBootstrapped = useRef(false);
 
   const searchAbortRef = useRef<AbortController | null>(null);
   const searchGenRef = useRef(0);
@@ -107,11 +115,19 @@ export function PlacesWorkspace() {
 
   useEffect(() => {
     const prefs = loadSearchPrefs();
-    setCategory(prefs.category);
-    setRadiusKm(prefs.radiusKm);
-    setSearchMode(prefs.searchMode);
+    const shared = parseShareSearchParams(window.location.search);
+    setCategory(shared.category ?? prefs.category);
+    setRadiusKm(shared.radiusKm ?? prefs.radiusKm);
+    setSearchMode(shared.mode ?? prefs.searchMode);
     setSort(prefs.sort);
+    if (shared.q) {
+      setCustomKeyword(shared.q);
+    }
+    if (typeof shared.lat === "number" && typeof shared.lng === "number") {
+      setCenter({ lat: shared.lat, lng: shared.lng });
+    }
     setPrefsReady(true);
+    shareBootstrapped.current = true;
   }, []);
 
   useEffect(() => {
@@ -120,6 +136,28 @@ export function PlacesWorkspace() {
     }
     saveSearchPrefs({ category, radiusKm, searchMode, sort });
   }, [prefsReady, category, radiusKm, searchMode, sort]);
+
+  useEffect(() => {
+    if (!prefsReady || !shareBootstrapped.current) {
+      return;
+    }
+    applyShareParamsToUrl({
+      lat: mapCenter?.lat,
+      lng: mapCenter?.lng,
+      radiusKm,
+      category,
+      mode: searchMode,
+      q: customKeyword,
+    });
+  }, [
+    prefsReady,
+    mapCenter?.lat,
+    mapCenter?.lng,
+    radiusKm,
+    category,
+    searchMode,
+    customKeyword,
+  ]);
 
   const mapPlaceholders = useMemo(() => {
     if (!mapCenter) {
@@ -188,8 +226,27 @@ export function PlacesWorkspace() {
   const handleOpenDetail = useCallback(() => {
     if (selectedPlaceId) {
       setDetailOpen(true);
+      setUsageRefresh((n) => n + 1);
     }
   }, [selectedPlaceId]);
+
+  const copyShareLink = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    applyShareParamsToUrl({
+      lat: mapCenter?.lat,
+      lng: mapCenter?.lng,
+      radiusKm,
+      category,
+      mode: searchMode,
+      q: customKeyword,
+    });
+    void navigator.clipboard?.writeText(window.location.href).then(() => {
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 1600);
+    });
+  }, [mapCenter, radiusKm, category, searchMode, customKeyword]);
 
   const handleToggleCompare = useCallback((id: string) => {
     setCompareIds((prev) => {
@@ -373,7 +430,7 @@ export function PlacesWorkspace() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:gap-6">
-      <div className="order-1 h-[42vh] min-h-[260px] w-full shrink-0 sm:h-[48vh] lg:order-2 lg:h-auto lg:min-h-0 lg:flex-1">
+      <div className="order-1 h-[min(42vh,22rem)] min-h-[240px] w-full shrink-0 sm:h-[48vh] lg:order-2 lg:h-auto lg:min-h-[28rem] lg:flex-1">
         <MapWorkspaceLoader
           center={mapCenter}
           boundingBox={focus.boundingBox}
@@ -425,6 +482,19 @@ export function PlacesWorkspace() {
               : "Google Places details: off — set GOOGLE_MAPS_API_KEY in .env to enable."}
           </p>
         )}
+        <GoogleUsagePanel refreshKey={usageRefresh} />
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <button
+            type="button"
+            className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]"
+            onClick={copyShareLink}
+          >
+            {linkCopied ? "Link copied" : "Copy share link"}
+          </button>
+          <span className="text-[var(--muted)]">
+            Deep-links lat, lng, radius, category, and mode in the URL.
+          </span>
+        </div>
         <hr className="border-[var(--line)]" />
 
         {showTools && (

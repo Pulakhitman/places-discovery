@@ -15,6 +15,7 @@ export function computeOsmCoverage(places: OsmPlace[]): FieldCoverage {
   let withWebsite = 0;
   let withPhone = 0;
   let withAddress = 0;
+  let withNamed = 0;
 
   for (const p of places) {
     if (p.hours) {
@@ -29,6 +30,9 @@ export function computeOsmCoverage(places: OsmPlace[]): FieldCoverage {
     if (p.address) {
       withAddress += 1;
     }
+    if (!p.isUnnamed) {
+      withNamed += 1;
+    }
   }
 
   return {
@@ -37,9 +41,11 @@ export function computeOsmCoverage(places: OsmPlace[]): FieldCoverage {
     withWebsite,
     withPhone,
     withAddress,
+    withNamed,
     hoursPct: pct(withHours, total),
     websitePct: pct(withWebsite, total),
     phonePct: pct(withPhone, total),
     addressPct: pct(withAddress, total),
+    namedPct: pct(withNamed, total),
   };
 }

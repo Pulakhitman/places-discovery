@@ -3,6 +3,9 @@ import { PlacesWorkspace } from "@/components/workspace/PlacesWorkspace";
 export default function HomePage() {
   return (
     <div className="relative flex min-h-screen flex-col">
+      <a href="#workspace" className="skip-link">
+        Skip to workspace
+      </a>
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 h-72 -z-10"
@@ -16,12 +19,16 @@ export default function HomePage() {
           </p>
           <p className="mt-1 max-w-xl text-sm text-[var(--muted)] sm:text-base">
             One map. Hierarchical areas. OpenStreetMap discovery, with optional
-            Google Places details via official APIs only.
+            Google Places details via official APIs only — no scraping.
           </p>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-8 sm:px-6 lg:min-h-0">
+      <main
+        id="workspace"
+        tabIndex={-1}
+        className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-8 outline-none sm:px-6 lg:min-h-0"
+      >
         <h1 className="sr-only">Places Discovery workspace</h1>
         <PlacesWorkspace />
       </main>

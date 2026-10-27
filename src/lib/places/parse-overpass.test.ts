@@ -193,4 +193,34 @@ describe("contact tag fallbacks", () => {
     expect(place.address).toContain("Market Hall");
     expect(place.address).toContain("Mission");
   });
+
+  it("normalizes bare website hosts and broader phone/hours tags", () => {
+    const [place] = parseOverpassElements(
+      [
+        {
+          type: "node",
+          id: 10,
+          lat: 37.77,
+          lon: -122.42,
+          tags: {
+            name: "Bare Host",
+            website: "example.org/menu",
+            telephone: "+1 555 0199",
+            "opening_hours:kitchen": "Mo-Fr 11:00-14:00",
+            "addr:housenumber": "12",
+            "addr:street": "Oak St",
+            "addr:state": "CA",
+          },
+        },
+      ],
+      { center, categoryId: "restaurants" },
+    );
+
+    expect(place.website).toBe("https://example.org/menu");
+    expect(place.phone).toBe("+1 555 0199");
+    expect(place.hours).toBe("Mo-Fr 11:00-14:00");
+    expect(place.address).toContain("12");
+    expect(place.address).toContain("Oak St");
+    expect(place.address).toContain("CA");
+  });
 });

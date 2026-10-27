@@ -1,5 +1,6 @@
 import type { PlaceCategoryId } from "@/lib/search/categories";
 import { categoryLabel } from "@/lib/search/overpass-queries";
+import { normalizeHttpUrl } from "./format";
 import { resolvePlaceName } from "./place-name";
 import type { OsmPlace } from "./types";
 
@@ -41,26 +42,59 @@ function elementCoords(
 }
 
 function formatAddress(tags: Record<string, string>): string | undefined {
-  const full = tags["addr:full"]?.trim();
+  const full =
+    tags["addr:full"]?.trim() || tags["contact:full"]?.trim();
   if (full) {
     return full;
   }
-  const parts = [
-    tags["addr:housenumber"],
-    tags["addr:street"] || tags["addr:place"],
-    tags["addr:suburb"] || tags["addr:neighbourhood"],
-    tags["addr:city"] ||
-      tags["addr:town"] ||
-      tags["addr:village"] ||
-      tags["addr:district"],
-    tags["addr:postcode"],
+
+  const unit = [tags["addr:unit"], tags["addr:floor"], tags["addr:door"]]
+    .map((p) => p?.trim())
+    .filter(Boolean)
+    .join(" ");
+
+  const streetLine = [
+    tags["addr:housenumber"] || tags["contact:housenumber"],
+    tags["addr:housename"],
+    tags["addr:street"] ||
+      tags["contact:street"] ||
+      tags["addr:place"] ||
+      tags["addr:road"],
   ]
     .map((p) => p?.trim())
-    .filter(Boolean);
-  if (parts.length === 0) {
+    .filter(Boolean)
+    .join(" ");
+
+const locality =
+    tags["addr:city"] ||
+    tags["contact:city"] ||
+    tags["addr:town"] ||
+    tags["addr:village"] ||
+    tags["addr:municipality"] ||
+    tags["addr:district"];
+
+  const neighbourhood =
+    tags["addr:suburb"] ||
+    tags["addr:neighbourhood"] ||
+    tags["addr:quarter"] ||
+    tags["addr:hamlet"];
+
+  const parts = [
+    unit || undefined,
+    streetLine || undefined,
+    neighbourhood,
+    locality,
+    tags["addr:state"] || tags["addr:province"] || tags["addr:region"],
+    tags["addr:postcode"] || tags["contact:postcode"],
+  ]
+    .map((p) => p?.trim())
+    .filter((p): p is string => Boolean(p));
+
+  const unique = [...new Set(parts)];
+  if (unique.length === 0) {
     return undefined;
   }
-  return parts.join(", ");
+  return unique.join(", ");
 }
 
 function firstTag(
@@ -77,13 +111,21 @@ function firstTag(
 }
 
 function pickWebsite(tags: Record<string, string>): string | undefined {
-  return firstTag(tags, [
+  const raw = firstTag(tags, [
     "website",
     "contact:website",
     "url",
     "contact:url",
     "website:en",
+    "website:menu",
+    "contact:facebook",
+    "facebook",
   ]);
+  if (!raw) {
+    return undefined;
+  }
+  // Prefer a normalized absolute URL; keep raw if it was already absolute-ish.
+  return normalizeHttpUrl(raw) ?? raw;
 }
 
 function pickPhone(tags: Record<string, string>): string | undefined {
@@ -92,15 +134,23 @@ function pickPhone(tags: Record<string, string>): string | undefined {
     "contact:phone",
     "contact:mobile",
     "mobile",
+    "telephone",
+    "contact:telephone",
+    "phone:mobile",
     "contact:whatsapp",
+    "contact:phone:mobile",
   ]);
 }
 
 function pickHours(tags: Record<string, string>): string | undefined {
   return firstTag(tags, [
     "opening_hours",
+    "opening_hours:covid19",
     "opening_hours:signed",
+    "opening_hours:kitchen",
     "service_times",
+    "collection_times",
+    "happy_hours",
   ]);
 }
 

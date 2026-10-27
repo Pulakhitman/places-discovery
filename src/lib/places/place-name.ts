@@ -10,10 +10,13 @@ const NAME_KEYS = [
   "alt_name:en",
   "loc_name",
   "short_name",
+  "short_name:en",
   "brand",
   "brand:en",
   "operator",
   "operator:en",
+  "ref",
+  "inscription",
 ] as const;
 
 function humanizeTag(value: string): string {
