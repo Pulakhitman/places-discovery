@@ -1,4 +1,5 @@
 import { setCachedGoogleDetails } from "@/lib/places/google-details-cache";
+import { extractCidFromMapsUri } from "@/lib/places/google-ids";
 import { scoreGoogleMatch, type GoogleMatchInfo } from "@/lib/places/google-match";
 import type {
   GooglePlaceDetails,
@@ -248,6 +249,8 @@ export function mapGooglePlaceDetails(
       undefined,
     website: raw.websiteUri?.trim() || undefined,
     googleMapsUri: raw.googleMapsUri?.trim() || undefined,
+    mapsCid:
+      extractCidFromMapsUri(raw.googleMapsUri?.trim()) ?? undefined,
     rating: raw.rating,
     userRatingCount: raw.userRatingCount,
     reviews,

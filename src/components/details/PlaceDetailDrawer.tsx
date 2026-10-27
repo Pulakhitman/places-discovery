@@ -17,6 +17,7 @@ import {
   readSessionGooglePlace,
   writeSessionGooglePlace,
 } from "@/lib/places/google-session-place";
+import { placesResourceName } from "@/lib/places/google-ids";
 import {
   skimGoogleReviews,
   type ReviewSkimMinStars,
@@ -398,6 +399,83 @@ function CopyButton({ label, value }: { label: string; value: string }) {
   );
 }
 
+function GoogleIdsBlock({ details }: { details: GooglePlaceDetails }) {
+  const resource = placesResourceName(details.placeId);
+  return (
+    <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/70 px-3 py-2">
+      <p className="text-sm font-medium text-[var(--ink)]">Google IDs</p>
+      <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+        From Places API (New) only — display / copy; never exported. No SerpAPI
+        or scrapers.
+      </p>
+      <ul className="mt-2 space-y-2 text-sm">
+        <IdCopyRow
+          label="place_id"
+          value={details.placeId}
+          hint="Primary Places API id (ChIJ…)"
+        />
+        {resource ? (
+          <IdCopyRow
+            label="resource name"
+            value={resource}
+            hint="places/… form used by the API"
+          />
+        ) : null}
+        {details.mapsCid ? (
+          <IdCopyRow
+            label="CID"
+            value={details.mapsCid}
+            hint="Parsed from googleMapsUri ?cid= when present"
+          />
+        ) : (
+          <li className="text-xs text-[var(--muted)]">
+            <span className="font-medium text-[var(--ink)]">CID: </span>
+            Not in this response
+            {details.googleMapsUri
+              ? " (Maps link has no ?cid=)"
+              : " (no googleMapsUri)"}
+          </li>
+        )}
+        <li className="text-xs text-[var(--muted)]">
+          <span className="font-medium text-[var(--ink)]">data_id: </span>
+          N/A from official Places API (New) — scrape-style{" "}
+          <code className="text-[10px]">0x…:0x…</code> ids are not returned
+          here.
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function IdCopyRow({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
+  return (
+    <li>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="min-w-0 flex-1">
+          <span className="text-xs font-medium text-[var(--ink)]">{label}</span>
+          {hint ? (
+            <span className="mt-0.5 block text-[11px] text-[var(--muted)]">
+              {hint}
+            </span>
+          ) : null}
+          <code className="mt-1 block break-all rounded bg-[var(--surface)] px-1.5 py-1 text-[11px] text-[var(--ink)] ring-1 ring-[var(--line)]">
+            {value}
+          </code>
+        </p>
+        <CopyButton label="Copy" value={value} />
+      </div>
+    </li>
+  );
+}
+
 function visitLabel(review: GooglePlaceReview): string | null {
   if (review.visitDateMonth && review.visitDateYear) {
     return `Visited ${review.visitDateMonth}/${review.visitDateYear}`;
@@ -502,6 +580,8 @@ function GoogleDetailsBlock({
               </a>
             ) : null}
           </div>
+
+          <GoogleIdsBlock details={details} />
 
           <dl className="space-y-2 text-sm">
             <Row label="Address" value={details.address} />

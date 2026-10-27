@@ -71,6 +71,16 @@ describe("mapGooglePlaceDetails", () => {
     });
   });
 
+  it("parses CID from googleMapsUri when present", () => {
+    const details = mapGooglePlaceDetails({
+      id: "ChIJcid",
+      displayName: { text: "Shop" },
+      location: { latitude: 1, longitude: 2 },
+      googleMapsUri: "https://maps.google.com/?cid=424242424242",
+    });
+    expect(details?.mapsCid).toBe("424242424242");
+  });
+
   it("maps official reviewSummary verbatim", () => {
     const details = mapGooglePlaceDetails({
       id: "ChIJsum",
