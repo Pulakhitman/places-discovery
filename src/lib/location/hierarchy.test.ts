@@ -1,0 +1,139 @@
+import { describe, expect, it } from "vitest";
+import {
+  breadcrumbLabels,
+  clearGeocodeLevel,
+  invalidateChildren,
+  pickFromResults,
+  selectGeocodeLevel,
+  setCountry,
+  shouldAutoSelectFirstResult,
+  skipLevel,
+} from "./hierarchy";
+import type { GeocodeResult, LocationSelection } from "./types";
+
+const region: GeocodeResult = {
+  id: "1",
+  displayName: "California",
+  lat: 36.7,
+  lng: -119.4,
+};
+
+const county: GeocodeResult = {
+  id: "2",
+  displayName: "Los Angeles County",
+  lat: 34.0,
+  lng: -118.2,
+};
+
+const city: GeocodeResult = {
+  id: "3",
+  displayName: "Los Angeles",
+  lat: 34.05,
+  lng: -118.24,
+};
+
+function fullSelection(): LocationSelection {
+  return {
+    country: { code: "US", name: "United States of America" },
+    region,
+    county,
+    city,
+  };
+}
+
+describe("hierarchy invalidate / reset", () => {
+  it("clears region, county, and city when country changes", () => {
+    const next = setCountry(fullSelection(), {
+      code: "BD",
+      name: "Bangladesh",
+    });
+    expect(next.country?.code).toBe("BD");
+    expect(next.region).toBeUndefined();
+    expect(next.county).toBeUndefined();
+    expect(next.city).toBeUndefined();
+  });
+
+  it("clears county and city when region changes", () => {
+    const next = selectGeocodeLevel(fullSelection(), "region", {
+      ...region,
+      id: "99",
+      displayName: "Texas",
+    });
+    expect(next.region?.displayName).toBe("Texas");
+    expect(next.county).toBeUndefined();
+    expect(next.city).toBeUndefined();
+    expect(next.country?.code).toBe("US");
+  });
+
+  it("clears city when county changes", () => {
+    const next = selectGeocodeLevel(fullSelection(), "county", {
+      ...county,
+      id: "88",
+      displayName: "Orange County",
+    });
+    expect(next.county?.displayName).toBe("Orange County");
+    expect(next.city).toBeUndefined();
+    expect(next.region).toEqual(region);
+  });
+
+  it("invalidateChildren alone resets descendants without touching parent", () => {
+    const next = invalidateChildren(fullSelection(), "region");
+    expect(next.country).toEqual(fullSelection().country);
+    expect(next.region).toEqual(region);
+    expect(next.county).toBeUndefined();
+    expect(next.city).toBeUndefined();
+  });
+
+  it("skipLevel clears the level and invalidates children", () => {
+    const next = skipLevel(fullSelection(), "region");
+    expect(next.region).toBeUndefined();
+    expect(next.county).toBeUndefined();
+    expect(next.city).toBeUndefined();
+    expect(next.country?.code).toBe("US");
+  });
+
+  it("clearGeocodeLevel resets a mid-level and children", () => {
+    const next = clearGeocodeLevel(fullSelection(), "county");
+    expect(next.county).toBeUndefined();
+    expect(next.city).toBeUndefined();
+    expect(next.region).toEqual(region);
+  });
+
+  it("builds breadcrumb from selected levels only", () => {
+    expect(breadcrumbLabels(fullSelection())).toEqual([
+      "United States of America",
+      "California",
+      "Los Angeles County",
+      "Los Angeles",
+    ]);
+    expect(
+      breadcrumbLabels({
+        country: { code: "US", name: "United States of America" },
+      }),
+    ).toEqual(["United States of America"]);
+  });
+});
+
+describe("no auto-select first result", () => {
+  it("never enables auto-select of the first geocode hit", () => {
+    expect(shouldAutoSelectFirstResult()).toBe(false);
+  });
+
+  it("pickFromResults returns undefined when index is omitted", () => {
+    const results = [region, county, city];
+    expect(pickFromResults(results, undefined)).toBeUndefined();
+    expect(pickFromResults(results, null)).toBeUndefined();
+  });
+
+  it("pickFromResults does not default to index 0", () => {
+    const results = [region, county, city];
+    expect(pickFromResults(results, undefined)?.id).not.toBe("1");
+    expect(pickFromResults(results, 1)?.id).toBe("2");
+  });
+
+  it("pickFromResults rejects out-of-range indexes", () => {
+    expect(pickFromResults([region], -1)).toBeUndefined();
+    expect(pickFromResults([region], 1)).toBeUndefined();
+    expect(pickFromResults([], 0)).toBeUndefined();
+  });
+});

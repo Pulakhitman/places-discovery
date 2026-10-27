@@ -1,0 +1,140 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+:root {
+  --background: #f3efe6;
+  --surface: #fffdf8;
+  --surface-2: #ebe4d6;
+  --ink: #1c1914;
+  --muted: #5c564c;
+  --line: #d4cbb8;
+  --accent: #0f766e;
+  --accent-ink: #f5fffd;
+  --danger: #9f1239;
+  --warn: #92400e;
+  --hero-glow: radial-gradient(
+    120% 80% at 10% 0%,
+    #dceee9 0%,
+    transparent 55%
+  ),
+    radial-gradient(90% 70% at 100% 10%, #f0e2c8 0%, transparent 50%),
+    linear-gradient(180deg, #f7f2e8 0%, #ebe3d4 100%);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--ink);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+}
+
+body {
+  background: var(--background);
+  color: var(--ink);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+}
+
+.field {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.925rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 25%, transparent);
+}
+
+.field:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--surface-2);
+}
+
+.dropdown {
+  position: absolute;
+  z-index: 40;
+  margin-top: 0.25rem;
+  max-height: 16rem;
+  width: 100%;
+  overflow: auto;
+  border-radius: 0.5rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(28, 25, 20, 0.12);
+  list-style: none;
+  padding: 0.25rem;
+}
+
+.dropdown-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.875rem;
+  color: var(--ink);
+  text-align: left;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus-visible {
+  background: var(--surface-2);
+  outline: none;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.6rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.925rem;
+  font-weight: 600;
+  padding: 0.65rem 1rem;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.center-pin {
+  background: transparent !important;
+  border: none !important;
+}
+
+.center-pin__dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 5px;
+  border-radius: 999px;
+  background: #0f766e;
+  border: 3px solid #fffdf8;
+  box-shadow: 0 2px 8px rgba(28, 25, 20, 0.35);
+}
+
+.map-shell .leaflet-container {
+  font: inherit;
+  background: #dfe8e4;
+}
+
+.map-shell .leaflet-control-attribution {
+  font-size: 10px;
+  background: color-mix(in oklab, var(--surface) 92%, transparent);
+}
