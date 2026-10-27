@@ -16,6 +16,7 @@ import type {
   PlacesSearchSuccess,
 } from "@/lib/places/types";
 import type { PlaceCategoryId, SearchRadiusKm } from "@/lib/search/categories";
+import { buildMapPlaceholders } from "@/lib/search/placeholders";
 
 export function PlacesWorkspace() {
   const [selection, setSelection] = useState<LocationSelection>({});
@@ -28,6 +29,22 @@ export function PlacesWorkspace() {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
 
   const focus = useMemo(() => mapFocusFromSelection(selection), [selection]);
+  const mapCenter = center ?? focus.center;
+
+  const mapPlaceholders = useMemo(() => {
+    if (!mapCenter) {
+      return [];
+    }
+    if (searchState.status !== "idle" && searchState.status !== "loading") {
+      return [];
+    }
+    return buildMapPlaceholders(
+      mapCenter,
+      category,
+      radiusKm,
+      customKeyword,
+    );
+  }, [mapCenter, category, radiusKm, customKeyword, searchState.status]);
 
   const handleSelectionChange = useCallback((next: LocationSelection) => {
     setSelection(next);
@@ -116,8 +133,6 @@ export function PlacesWorkspace() {
     }
   }, [center, radiusKm, category, customKeyword]);
 
-  const mapCenter = center ?? focus.center;
-
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:gap-6">
       {/* Map first on small screens so it stays usable above the fold */}
@@ -128,6 +143,7 @@ export function PlacesWorkspace() {
           zoom={focus.zoom}
           radiusKm={radiusKm}
           places={places}
+          placeholders={mapPlaceholders}
           selectedPlaceId={selectedPlaceId}
           onCenterChange={setCenter}
           onSelectPlace={setSelectedPlaceId}

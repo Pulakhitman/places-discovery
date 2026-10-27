@@ -14,6 +14,9 @@ import {
 import L from "leaflet";
 import type { MapCenter } from "@/lib/location/types";
 import type { OsmPlace } from "@/lib/places/types";
+import { categoryMarkerHtml } from "@/lib/search/category-marker-html";
+import type { MapPlaceholderPin } from "@/lib/search/placeholders";
+import type { PlaceCategoryId } from "@/lib/search/categories";
 
 import "leaflet/dist/leaflet.css";
 
@@ -27,12 +30,30 @@ const pinIcon = L.divIcon({
   iconAnchor: [14, 14],
 });
 
+const placeholderIconCache = new Map<PlaceCategoryId, L.DivIcon>();
+
+function placeholderIcon(category: PlaceCategoryId): L.DivIcon {
+  const cached = placeholderIconCache.get(category);
+  if (cached) {
+    return cached;
+  }
+  const icon = L.divIcon({
+    className: "leaflet-div-icon map-ph-marker",
+    html: categoryMarkerHtml(category),
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+  placeholderIconCache.set(category, icon);
+  return icon;
+}
+
 type Props = {
   center: MapCenter | null;
   radiusKm: number;
   boundingBox?: [number, number, number, number];
   zoom?: number;
   places?: OsmPlace[];
+  placeholders?: MapPlaceholderPin[];
   selectedPlaceId?: string | null;
   onCenterChange: (center: MapCenter) => void;
   onSelectPlace?: (id: string | null) => void;
@@ -175,6 +196,7 @@ export function MapWorkspace({
   boundingBox,
   zoom,
   places = [],
+  placeholders = [],
   selectedPlaceId = null,
   onCenterChange,
   onSelectPlace,
@@ -182,6 +204,7 @@ export function MapWorkspace({
   const shellRef = useRef<HTMLDivElement>(null);
   const activeCenter = center ?? DEFAULT_CENTER;
   const radiusMeters = useMemo(() => radiusKm * 1000, [radiusKm]);
+  const showPlaceholders = places.length === 0 && placeholders.length > 0;
 
   return (
     <div
@@ -238,6 +261,24 @@ export function MapWorkspace({
           }}
           title="Search center — drag to move"
         />
+        {showPlaceholders &&
+          placeholders.map((pin) => (
+            <Marker
+              key={pin.id}
+              position={[pin.lat, pin.lng]}
+              icon={placeholderIcon(pin.category)}
+              interactive={false}
+              keyboard={false}
+              zIndexOffset={200}
+            >
+              <Tooltip direction="top" offset={[0, -12]} opacity={0.95} permanent>
+                <span className="text-[11px]">
+                  {pin.title}
+                  <span className="text-[var(--muted)]"> · sample</span>
+                </span>
+              </Tooltip>
+            </Marker>
+          ))}
         {places.map((place) => {
           const active = place.id === selectedPlaceId;
           return (
@@ -271,8 +312,9 @@ export function MapWorkspace({
         })}
       </MapContainer>
       <p className="pointer-events-none absolute bottom-2 left-2 z-[1000] rounded bg-[color-mix(in_oklab,var(--surface)_90%,transparent)] px-2 py-1 text-[11px] text-[var(--muted)] shadow-sm">
-        Orange dots = places · teal pin = search center · {places.length} on map
-        · {radiusKm} km
+        {showPlaceholders
+          ? `Sample ${placeholders[0]?.category ?? "place"} icons · teal pin = search center · ${radiusKm} km`
+          : `Orange dots = places · teal pin = search center · ${places.length} on map · ${radiusKm} km`}
       </p>
     </div>
   );

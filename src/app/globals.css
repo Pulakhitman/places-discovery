@@ -157,6 +157,29 @@ body {
   box-shadow: 0 0 0 3px color-mix(in oklab, #0f766e 35%, transparent);
 }
 
+.map-ph-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.map-ph-pin {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #0f766e;
+  background: color-mix(in oklab, #fffdf8 88%, transparent);
+  border: 1.5px dashed #0f766e;
+  box-shadow: 0 1px 6px rgba(28, 25, 20, 0.18);
+  opacity: 0.92;
+}
+
+.map-ph-pin svg {
+  display: block;
+}
+
 .map-shell .leaflet-container {
   font: inherit;
   background: #dfe8e4;

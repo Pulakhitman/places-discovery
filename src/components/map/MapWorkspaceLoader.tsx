@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import type { MapCenter } from "@/lib/location/types";
 import type { OsmPlace } from "@/lib/places/types";
+import type { MapPlaceholderPin } from "@/lib/search/placeholders";
 
 const MapWorkspace = dynamic(
   () => import("./MapWorkspace").then((m) => m.MapWorkspace),
@@ -25,6 +26,7 @@ type Props = {
   boundingBox?: [number, number, number, number];
   zoom?: number;
   places?: OsmPlace[];
+  placeholders?: MapPlaceholderPin[];
   selectedPlaceId?: string | null;
   onCenterChange: (center: MapCenter) => void;
   onSelectPlace?: (id: string | null) => void;

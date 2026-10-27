@@ -118,3 +118,67 @@ export function buildResultPlaceholders(
     category,
   }));
 }
+
+export type MapPlaceholderPin = {
+  id: string;
+  title: string;
+  category: PlaceCategoryId;
+  lat: number;
+  lng: number;
+};
+
+/** Offset a lat/lng by distance meters at a compass bearing (degrees). */
+export function offsetLatLng(
+  center: { lat: number; lng: number },
+  distanceM: number,
+  bearingDeg: number,
+): { lat: number; lng: number } {
+  const R = 6371000;
+  const δ = distanceM / R;
+  const θ = (bearingDeg * Math.PI) / 180;
+  const φ1 = (center.lat * Math.PI) / 180;
+  const λ1 = (center.lng * Math.PI) / 180;
+
+  const sinφ1 = Math.sin(φ1);
+  const cosφ1 = Math.cos(φ1);
+  const sinδ = Math.sin(δ);
+  const cosδ = Math.cos(δ);
+
+  const sinφ2 = sinφ1 * cosδ + cosφ1 * sinδ * Math.cos(θ);
+  const φ2 = Math.asin(sinφ2);
+  const λ2 =
+    λ1 +
+    Math.atan2(Math.sin(θ) * sinδ * cosφ1, cosδ - sinφ1 * sinφ2);
+
+  return {
+    lat: (φ2 * 180) / Math.PI,
+    lng: (((λ2 * 180) / Math.PI + 540) % 360) - 180,
+  };
+}
+
+/**
+ * Sample pins inside the search radius for idle/loading preview on the map.
+ * Same titles as the results-list placeholders.
+ */
+export function buildMapPlaceholders(
+  center: { lat: number; lng: number },
+  category: PlaceCategoryId,
+  radiusKm: SearchRadiusKm,
+  customKeyword?: string,
+): MapPlaceholderPin[] {
+  const cards = buildResultPlaceholders(category, radiusKm, customKeyword);
+  const bearings = [35, 155, 265];
+  const radiusFracs = [0.42, 0.55, 0.48];
+
+  return cards.map((card, index) => {
+    const distanceM = radiusKm * 1000 * (radiusFracs[index] ?? 0.5);
+    const pos = offsetLatLng(center, distanceM, bearings[index] ?? 0);
+    return {
+      id: `ph-${category}-${index}`,
+      title: card.title,
+      category: card.category,
+      lat: pos.lat,
+      lng: pos.lng,
+    };
+  });
+}
