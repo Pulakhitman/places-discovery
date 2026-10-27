@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react";
 import {
   Circle,
+  CircleMarker,
   MapContainer,
   Marker,
   TileLayer,
@@ -19,20 +20,11 @@ const DEFAULT_CENTER: MapCenter = { lat: 20, lng: 0 };
 const WORLD_ZOOM = 2;
 
 const pinIcon = L.divIcon({
-  className: "center-pin",
+  className: "leaflet-div-icon center-pin",
   html: `<span class="center-pin__dot" aria-hidden="true"></span>`,
   iconSize: [28, 28],
   iconAnchor: [14, 14],
 });
-
-function resultIcon(active: boolean) {
-  return L.divIcon({
-    className: "result-marker",
-    html: `<span class="result-marker__dot${active ? " result-marker__dot--active" : ""}" aria-hidden="true"></span>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-  });
-}
 
 type Props = {
   center: MapCenter | null;
@@ -47,13 +39,19 @@ type Props = {
 function MapFocus({
   center,
   boundingBox,
+  hasPlaces,
 }: {
   center: MapCenter | null;
   boundingBox?: [number, number, number, number];
+  hasPlaces: boolean;
 }) {
   const map = useMap();
 
   useEffect(() => {
+    // After a search, FitPlaces owns the viewport — don't yank back to admin bbox.
+    if (hasPlaces) {
+      return;
+    }
     if (boundingBox) {
       const [south, north, west, east] = boundingBox;
       map.fitBounds(
@@ -72,7 +70,25 @@ function MapFocus({
       return;
     }
     map.setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], WORLD_ZOOM);
-  }, [map, center, boundingBox]);
+  }, [map, center, boundingBox, hasPlaces]);
+
+  return null;
+}
+
+function FitPlaces({ places }: { places: OsmPlace[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (places.length === 0) {
+      return;
+    }
+    const bounds = L.latLngBounds(
+      places.map((p) => [p.lat, p.lng] as [number, number]),
+    );
+    map.fitBounds(bounds.pad(0.15), { maxZoom: 15, animate: true });
+    // Leaflet sometimes needs a kick after dynamic layer changes.
+    window.setTimeout(() => map.invalidateSize(), 50);
+  }, [map, places]);
 
   return null;
 }
@@ -107,8 +123,6 @@ function MapClickSetter({
 }) {
   useMapEvents({
     click(e) {
-      // Map background click sets search center.
-      // Result marker clicks must call stopPropagation so they do not reach here.
       onCenterChange({ lat: e.latlng.lat, lng: e.latlng.lng });
     },
   });
@@ -139,7 +153,7 @@ export function MapWorkspace({
       <MapContainer
         center={[DEFAULT_CENTER.lat, DEFAULT_CENTER.lng]}
         zoom={WORLD_ZOOM}
-        className="h-full w-full"
+        className="h-full w-full z-0"
         scrollWheelZoom
         attributionControl
       >
@@ -147,7 +161,12 @@ export function MapWorkspace({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <MapFocus center={center} boundingBox={boundingBox} />
+        <MapFocus
+          center={center}
+          boundingBox={boundingBox}
+          hasPlaces={places.length > 0}
+        />
+        <FitPlaces places={places} />
         <SelectedPlacePan places={places} selectedPlaceId={selectedPlaceId} />
         <MapClickSetter onCenterChange={onCenterChange} />
         <Circle
@@ -156,7 +175,7 @@ export function MapWorkspace({
           pathOptions={{
             color: "#0f766e",
             fillColor: "#0d9488",
-            fillOpacity: 0.12,
+            fillOpacity: 0.08,
             weight: 2,
           }}
         />
@@ -177,26 +196,33 @@ export function MapWorkspace({
           }}
           title="Search center — drag to move"
         />
-        {places.map((place) => (
-          <Marker
-            key={place.id}
-            position={[place.lat, place.lng]}
-            icon={resultIcon(place.id === selectedPlaceId)}
-            zIndexOffset={place.id === selectedPlaceId ? 800 : 400}
-            eventHandlers={{
-              click: (e) => {
-                // Must not set a new search center — only select the place.
-                L.DomEvent.stopPropagation(e.originalEvent);
-                onSelectPlace?.(place.id);
-              },
-            }}
-            title={place.name}
-          />
-        ))}
+        {places.map((place) => {
+          const active = place.id === selectedPlaceId;
+          return (
+            <CircleMarker
+              key={place.id}
+              center={[place.lat, place.lng]}
+              radius={active ? 10 : 7}
+              pathOptions={{
+                color: active ? "#0f766e" : "#9a3412",
+                fillColor: active ? "#0d9488" : "#ea580c",
+                fillOpacity: 0.95,
+                weight: 2,
+              }}
+              eventHandlers={{
+                click: (e) => {
+                  // Must not set a new search center — only select the place.
+                  L.DomEvent.stopPropagation(e.originalEvent);
+                  onSelectPlace?.(place.id);
+                },
+              }}
+            />
+          );
+        })}
       </MapContainer>
       <p className="pointer-events-none absolute bottom-2 left-2 z-[1000] rounded bg-[color-mix(in_oklab,var(--surface)_90%,transparent)] px-2 py-1 text-[11px] text-[var(--muted)] shadow-sm">
-        Click map or drag pin to set center · markers select places · {radiusKm}{" "}
-        km radius
+        Orange dots = places · teal pin = search center · {places.length} on map
+        · {radiusKm} km
       </p>
     </div>
   );
