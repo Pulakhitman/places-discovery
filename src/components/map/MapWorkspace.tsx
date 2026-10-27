@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Circle,
-  CircleMarker,
   MapContainer,
   Marker,
   TileLayer,
@@ -14,7 +13,10 @@ import {
 import L from "leaflet";
 import type { MapCenter } from "@/lib/location/types";
 import type { OsmPlace } from "@/lib/places/types";
-import { categoryMarkerHtml } from "@/lib/search/category-marker-html";
+import {
+  categoryMarkerHtml,
+  type CategoryMarkerVariant,
+} from "@/lib/search/category-marker-html";
 import type { MapPlaceholderPin } from "@/lib/search/placeholders";
 import type { PlaceCategoryId } from "@/lib/search/categories";
 
@@ -30,21 +32,33 @@ const pinIcon = L.divIcon({
   iconAnchor: [14, 14],
 });
 
-const placeholderIconCache = new Map<PlaceCategoryId, L.DivIcon>();
+const markerIconCache = new Map<string, L.DivIcon>();
 
-function placeholderIcon(category: PlaceCategoryId): L.DivIcon {
-  const cached = placeholderIconCache.get(category);
+function markerIcon(
+  category: PlaceCategoryId,
+  variant: CategoryMarkerVariant,
+): L.DivIcon {
+  const key = `${category}:${variant}`;
+  const cached = markerIconCache.get(key);
   if (cached) {
     return cached;
   }
+  const size = variant === "result-active" ? 36 : 30;
   const icon = L.divIcon({
     className: "leaflet-div-icon map-ph-marker",
-    html: categoryMarkerHtml(category),
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
+    html: categoryMarkerHtml(category, variant),
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
-  placeholderIconCache.set(category, icon);
+  markerIconCache.set(key, icon);
   return icon;
+}
+
+function searchAreaBounds(center: MapCenter, radiusKm: number): L.LatLngBounds {
+  // toBounds(size) uses size as both width and height in meters → diameter of circle.
+  return L.latLng(center.lat, center.lng).toBounds(
+    Math.max(radiusKm, 0.5) * 1000 * 2,
+  );
 }
 
 type Props = {
@@ -97,17 +111,28 @@ function MapFocus({
   boundingBox,
   zoom,
   hasPlaces,
+  radiusKm,
 }: {
   center: MapCenter | null;
   boundingBox?: [number, number, number, number];
   zoom?: number;
   hasPlaces: boolean;
+  radiusKm: number;
 }) {
   const map = useMap();
 
   useEffect(() => {
-    // After a search, FitPlaces owns the viewport — don't yank back to admin bbox.
+    // After a search, FitPlaces owns the viewport — don't yank back.
     if (hasPlaces) {
+      return;
+    }
+    if (center) {
+      map.fitBounds(searchAreaBounds(center, radiusKm), {
+        padding: [40, 40],
+        maxZoom: zoom ?? 15,
+        animate: true,
+      });
+      map.invalidateSize({ animate: false });
       return;
     }
     if (boundingBox) {
@@ -122,31 +147,33 @@ function MapFocus({
       map.invalidateSize({ animate: false });
       return;
     }
-    if (center) {
-      const nextZoom = zoom ?? Math.max(map.getZoom(), 10);
-      map.setView([center.lat, center.lng], nextZoom, { animate: true });
-      map.invalidateSize({ animate: false });
-      return;
-    }
     map.setView([DEFAULT_CENTER.lat, DEFAULT_CENTER.lng], WORLD_ZOOM);
-  }, [map, center, boundingBox, zoom, hasPlaces]);
+  }, [map, center, boundingBox, zoom, hasPlaces, radiusKm]);
 
   return null;
 }
 
-function FitPlaces({ places }: { places: OsmPlace[] }) {
+function FitPlaces({
+  places,
+  center,
+}: {
+  places: OsmPlace[];
+  center: MapCenter | null;
+}) {
   const map = useMap();
 
   useEffect(() => {
     if (places.length === 0) {
       return;
     }
-    const bounds = L.latLngBounds(
-      places.map((p) => [p.lat, p.lng] as [number, number]),
-    );
-    map.fitBounds(bounds.pad(0.15), { maxZoom: 15, animate: true });
+    const points: [number, number][] = places.map((p) => [p.lat, p.lng]);
+    if (center) {
+      points.push([center.lat, center.lng]);
+    }
+    const bounds = L.latLngBounds(points);
+    map.fitBounds(bounds.pad(0.2), { maxZoom: 15, animate: true });
     window.setTimeout(() => map.invalidateSize(), 50);
-  }, [map, places]);
+  }, [map, places, center]);
 
   return null;
 }
@@ -187,6 +214,33 @@ function MapClickSetter({
   return null;
 }
 
+function MapToolbarBridge({
+  center,
+  radiusKm,
+  onReady,
+}: {
+  center: MapCenter | null;
+  radiusKm: number;
+  onReady: (fitSearchArea: () => void) => void;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    onReady(() => {
+      if (!center) {
+        return;
+      }
+      map.fitBounds(searchAreaBounds(center, radiusKm), {
+        padding: [40, 40],
+        maxZoom: 15,
+        animate: true,
+      });
+    });
+  }, [map, center, radiusKm, onReady]);
+
+  return null;
+}
+
 /**
  * Sole map surface for the app. Do not mount a second map elsewhere.
  */
@@ -202,9 +256,18 @@ export function MapWorkspace({
   onSelectPlace,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
+  const fitSearchAreaRef = useRef<(() => void) | null>(null);
   const activeCenter = center ?? DEFAULT_CENTER;
   const radiusMeters = useMemo(() => radiusKm * 1000, [radiusKm]);
   const showPlaceholders = places.length === 0 && placeholders.length > 0;
+  const selectedPlace = useMemo(
+    () => places.find((p) => p.id === selectedPlaceId) ?? null,
+    [places, selectedPlaceId],
+  );
+
+  const handleToolbarReady = useCallback((fitSearchArea: () => void) => {
+    fitSearchAreaRef.current = fitSearchArea;
+  }, []);
 
   return (
     <div
@@ -219,6 +282,7 @@ export function MapWorkspace({
         className="absolute inset-0 z-0 h-full w-full"
         scrollWheelZoom
         attributionControl
+        zoomControl={false}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -230,18 +294,26 @@ export function MapWorkspace({
           boundingBox={boundingBox}
           zoom={zoom}
           hasPlaces={places.length > 0}
+          radiusKm={radiusKm}
         />
-        <FitPlaces places={places} />
+        <FitPlaces places={places} center={center} />
         <SelectedPlacePan places={places} selectedPlaceId={selectedPlaceId} />
         <MapClickSetter onCenterChange={onCenterChange} />
+        <MapToolbarBridge
+          center={center}
+          radiusKm={radiusKm}
+          onReady={handleToolbarReady}
+        />
+        <ZoomControlBottomRight />
         <Circle
           center={[activeCenter.lat, activeCenter.lng]}
           radius={radiusMeters}
           pathOptions={{
             color: "#0f766e",
             fillColor: "#0d9488",
-            fillOpacity: 0.08,
-            weight: 2,
+            fillOpacity: 0.1,
+            weight: 2.5,
+            dashArray: undefined,
           }}
         />
         <Marker
@@ -260,21 +332,31 @@ export function MapWorkspace({
             },
           }}
           title="Search center — drag to move"
-        />
+        >
+          <Tooltip direction="bottom" offset={[0, 12]} opacity={0.95}>
+            Search center · drag to move
+          </Tooltip>
+        </Marker>
         {showPlaceholders &&
           placeholders.map((pin) => (
             <Marker
               key={pin.id}
               position={[pin.lat, pin.lng]}
-              icon={placeholderIcon(pin.category)}
+              icon={markerIcon(pin.category, "placeholder")}
               interactive={false}
               keyboard={false}
               zIndexOffset={200}
             >
-              <Tooltip direction="top" offset={[0, -12]} opacity={0.95} permanent>
-                <span className="text-[11px]">
+              <Tooltip
+                direction="top"
+                offset={[0, -14]}
+                opacity={0.95}
+                permanent
+                className="map-tip map-tip--sample"
+              >
+                <span>
                   {pin.title}
-                  <span className="text-[var(--muted)]"> · sample</span>
+                  <span className="map-tip__muted"> · sample</span>
                 </span>
               </Tooltip>
             </Marker>
@@ -282,40 +364,101 @@ export function MapWorkspace({
         {places.map((place) => {
           const active = place.id === selectedPlaceId;
           return (
-            <CircleMarker
+            <Marker
               key={place.id}
-              center={[place.lat, place.lng]}
-              radius={active ? 10 : 7}
-              pathOptions={{
-                color: active ? "#0f766e" : "#9a3412",
-                fillColor: active ? "#0d9488" : "#ea580c",
-                fillOpacity: 0.95,
-                weight: 2,
-              }}
+              position={[place.lat, place.lng]}
+              icon={markerIcon(
+                place.categoryId,
+                active ? "result-active" : "result",
+              )}
+              zIndexOffset={active ? 800 : 400}
               eventHandlers={{
                 click: (e) => {
                   L.DomEvent.stopPropagation(e.originalEvent);
-                  onSelectPlace?.(place.id);
+                  onSelectPlace?.(active ? null : place.id);
                 },
               }}
+              title={place.name}
             >
               <Tooltip
                 direction="top"
-                offset={[0, -8]}
-                opacity={0.95}
+                offset={[0, -16]}
+                opacity={0.97}
                 permanent={active}
+                className={active ? "map-tip map-tip--active" : "map-tip"}
               >
                 {place.name}
               </Tooltip>
-            </CircleMarker>
+            </Marker>
           );
         })}
       </MapContainer>
-      <p className="pointer-events-none absolute bottom-2 left-2 z-[1000] rounded bg-[color-mix(in_oklab,var(--surface)_90%,transparent)] px-2 py-1 text-[11px] text-[var(--muted)] shadow-sm">
-        {showPlaceholders
-          ? `Sample ${placeholders[0]?.category ?? "place"} icons · teal pin = search center · ${radiusKm} km`
-          : `Orange dots = places · teal pin = search center · ${places.length} on map · ${radiusKm} km`}
-      </p>
+
+      {selectedPlace && (
+        <div className="pointer-events-auto absolute left-2 right-14 top-2 z-[1100] flex max-w-md items-start gap-2 rounded-lg border border-[var(--line)] bg-[color-mix(in_oklab,var(--surface)_94%,transparent)] px-3 py-2 shadow-md backdrop-blur-sm">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-[var(--ink)]">
+              {selectedPlace.name}
+            </p>
+            <p className="truncate text-xs text-[var(--muted)]">
+              {selectedPlace.categoryLabel}
+              {selectedPlace.address ? ` · ${selectedPlace.address}` : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+            onClick={() => onSelectPlace?.(null)}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      <div className="pointer-events-auto absolute right-2 top-2 z-[1100] flex flex-col gap-1.5">
+        <button
+          type="button"
+          className="map-tool-btn"
+          disabled={!center}
+          title="Fit search area"
+          aria-label="Fit search area on map"
+          onClick={() => fitSearchAreaRef.current?.()}
+        >
+          Fit area
+        </button>
+      </div>
+
+      <div className="pointer-events-none absolute bottom-2 left-2 z-[1000] max-w-[min(100%-1rem,20rem)] rounded-lg border border-[var(--line)] bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] px-2.5 py-1.5 text-[11px] leading-snug text-[var(--muted)] shadow-sm backdrop-blur-sm">
+        {showPlaceholders ? (
+          <>
+            Dashed icons = sample {placeholders[0]?.category ?? "places"} · teal
+            pin = center · {radiusKm} km radius
+          </>
+        ) : places.length > 0 ? (
+          <>
+            Category icons = places ({places.length}) · teal pin = center ·{" "}
+            {radiusKm} km · tap a pin for details
+          </>
+        ) : (
+          <>
+            Teal pin = search center (drag or tap map) · {radiusKm} km radius
+          </>
+        )}
+      </div>
     </div>
   );
+}
+
+function ZoomControlBottomRight() {
+  const map = useMap();
+
+  useEffect(() => {
+    const control = L.control.zoom({ position: "bottomright" });
+    control.addTo(map);
+    return () => {
+      control.remove();
+    };
+  }, [map]);
+
+  return null;
 }

@@ -53,7 +53,19 @@ const PATHS: Record<PlaceCategoryId, string> = {
   `,
 };
 
-export function categoryMarkerHtml(category: PlaceCategoryId): string {
+export type CategoryMarkerVariant = "placeholder" | "result" | "result-active";
+
+export function categoryMarkerHtml(
+  category: PlaceCategoryId,
+  variant: CategoryMarkerVariant = "placeholder",
+): string {
   const paths = PATHS[category] ?? PATHS.custom;
-  return `<span class="map-ph-pin" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${paths}</svg></span>`;
+  const pinClass =
+    variant === "placeholder"
+      ? "map-ph-pin"
+      : variant === "result-active"
+        ? "map-result-pin map-result-pin--active"
+        : "map-result-pin";
+  const size = variant === "result-active" ? 18 : 16;
+  return `<span class="${pinClass}" aria-hidden="true"><svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${paths}</svg></span>`;
 }

@@ -162,22 +162,66 @@ body {
   border: none !important;
 }
 
-.map-ph-pin {
+.map-ph-pin,
+.map-result-pin {
   display: flex;
   width: 30px;
   height: 30px;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
+  box-shadow: 0 1px 6px rgba(28, 25, 20, 0.22);
+}
+
+.map-ph-pin {
   color: #0f766e;
   background: color-mix(in oklab, #fffdf8 88%, transparent);
   border: 1.5px dashed #0f766e;
-  box-shadow: 0 1px 6px rgba(28, 25, 20, 0.18);
   opacity: 0.92;
 }
 
-.map-ph-pin svg {
+.map-result-pin {
+  color: #9a3412;
+  background: #fff7ed;
+  border: 2px solid #ea580c;
+}
+
+.map-result-pin--active {
+  width: 36px;
+  height: 36px;
+  color: #0f766e;
+  background: #ecfdf5;
+  border: 2.5px solid #0f766e;
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, #0f766e 28%, transparent),
+    0 2px 10px rgba(28, 25, 20, 0.28);
+}
+
+.map-ph-pin svg,
+.map-result-pin svg {
   display: block;
+}
+
+.map-tool-btn {
+  pointer-events: auto;
+  border-radius: 0.5rem;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--surface) 94%, transparent);
+  padding: 0.4rem 0.65rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ink);
+  box-shadow: 0 1px 6px rgba(28, 25, 20, 0.12);
+  backdrop-filter: blur(6px);
+}
+
+.map-tool-btn:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.map-tool-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .map-shell .leaflet-container {
@@ -188,4 +232,53 @@ body {
 .map-shell .leaflet-control-attribution {
   font-size: 10px;
   background: color-mix(in oklab, var(--surface) 92%, transparent);
+}
+
+.map-shell .leaflet-bar {
+  border: 1px solid var(--line) !important;
+  border-radius: 0.5rem !important;
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(28, 25, 20, 0.12) !important;
+}
+
+.map-shell .leaflet-bar a {
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  color: var(--ink);
+  background: color-mix(in oklab, var(--surface) 94%, transparent);
+}
+
+.map-shell .leaflet-bar a:hover {
+  background: var(--surface);
+}
+
+.map-shell .leaflet-tooltip.map-tip {
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: color-mix(in oklab, var(--surface) 96%, transparent);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0.25rem 0.45rem;
+  box-shadow: 0 2px 8px rgba(28, 25, 20, 0.14);
+}
+
+.map-shell .leaflet-tooltip.map-tip--active {
+  border-color: #0f766e;
+  color: #0f766e;
+}
+
+.map-shell .leaflet-tooltip.map-tip--sample {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.map-tip__muted {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.map-shell .leaflet-tooltip-top::before {
+  border-top-color: var(--line);
 }
