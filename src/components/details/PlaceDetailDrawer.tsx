@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type {
   GoogleLookupResponse,
   GoogleMatchInfo,
@@ -13,6 +13,15 @@ import {
   formatLatLng,
   osmBrowseUrl,
 } from "@/lib/places/format";
+import {
+  readSessionGooglePlace,
+  writeSessionGooglePlace,
+} from "@/lib/places/google-session-place";
+import {
+  skimGoogleReviews,
+  type ReviewSkimMinStars,
+  type ReviewSkimSort,
+} from "@/lib/places/review-skim";
 import type { OsmPlace } from "@/lib/places/types";
 import { CategoryIcon } from "@/lib/search/category-icons";
 
@@ -104,6 +113,29 @@ function PlaceDetailDrawerInner({
 
     void (async () => {
       try {
+        // Phase 3: reuse session placeId (no Text Search) when we already matched.
+        const cached = readSessionGooglePlace(place.id);
+        if (cached?.placeId) {
+          const res = await fetch(
+            `/api/places/google/${encodeURIComponent(cached.placeId)}`,
+            { signal: controller.signal },
+          );
+          const data = (await res.json()) as GoogleLookupResponse;
+          if (cancelled) {
+            return;
+          }
+          if (data.status === "ok") {
+            setGoogle({
+              status: "ok",
+              details: data.details,
+              match: cached.match,
+            });
+            setAcceptedWeakMatch(cached.match.confidence === "strong");
+            return;
+          }
+          // Stale id — fall through to name lookup.
+        }
+
         const res = await fetch("/api/places/google/lookup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -127,6 +159,11 @@ function PlaceDetailDrawerInner({
             queriedName: place.name,
             googleName: data.details.name,
           };
+          writeSessionGooglePlace(place.id, {
+            placeId: data.details.placeId,
+            googleName: data.details.name,
+            match,
+          });
           setGoogle({
             status: "ok",
             details: data.details,
@@ -164,7 +201,7 @@ function PlaceDetailDrawerInner({
       cancelled = true;
       controller.abort();
     };
-  }, [place.name, place.lat, place.lng, retryNonce]);
+  }, [place.id, place.name, place.lat, place.lng, retryNonce]);
 
   return (
     <div
@@ -383,6 +420,12 @@ function GoogleDetailsBlock({
 }) {
   const showRich =
     match.confidence === "strong" || acceptedWeakMatch;
+  const [minStars, setMinStars] = useState<ReviewSkimMinStars>(0);
+  const [sort, setSort] = useState<ReviewSkimSort>("relevance");
+  const visibleReviews = useMemo(
+    () => skimGoogleReviews(details.reviews, { minStars, sort }),
+    [details.reviews, minStars, sort],
+  );
 
   return (
     <div className="mt-2 space-y-3">
@@ -496,6 +539,24 @@ function GoogleDetailsBlock({
             </div>
           ) : null}
 
+          {details.reviewSummary?.text ? (
+            <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/80 px-3 py-2">
+              <p className="text-sm font-medium text-[var(--ink)]">
+                Google review summary
+              </p>
+              <p className="mt-1 text-sm text-[var(--ink)]">
+                {details.reviewSummary.text}
+              </p>
+              <p className="mt-2 text-[11px] text-[var(--muted)]" translate="no">
+                {details.reviewSummary.disclosureText
+                  ? `${details.reviewSummary.disclosureText} · `
+                  : ""}
+                Official Places reviewSummary · shown verbatim · not written by
+                this app
+              </p>
+            </div>
+          ) : null}
+
           <div>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-sm font-medium text-[var(--ink)]">
@@ -520,92 +581,132 @@ function GoogleDetailsBlock({
               ) : null}
             </div>
             <p className="mt-1 text-[11px] text-[var(--muted)]">
-              Ordered by relevance. This is the sample Google returned — not the
-              full review list.
+              Sample Google returned (max 5) — skim locally; not a full list or
+              scrape.
             </p>
             {details.reviews.length > 0 ? (
-              <ul className="mt-2 space-y-3">
-                {details.reviews.map((review, index) => (
-                  <li
-                    key={`${review.authorName ?? "r"}-${index}`}
-                    className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/60 px-3 py-2 text-sm"
-                  >
-                    <div className="flex items-start gap-2">
-                      {review.authorPhotoUri ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={review.authorPhotoUri}
-                          alt=""
-                          className="mt-0.5 h-8 w-8 rounded-full object-cover ring-1 ring-[var(--line)]"
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : null}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs text-[var(--muted)]">
-                          {typeof review.rating === "number"
-                            ? `★ ${review.rating}`
-                            : "Review"}
-                          {review.authorName ? (
-                            <>
-                              {" · "}
-                              {review.authorUri ? (
+              <>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <label className="flex items-center gap-1 text-[var(--muted)]">
+                    Min stars
+                    <select
+                      className="field py-1 text-xs"
+                      value={minStars}
+                      onChange={(e) =>
+                        setMinStars(Number(e.target.value) as ReviewSkimMinStars)
+                      }
+                    >
+                      <option value={0}>Any</option>
+                      <option value={4}>★★★★+</option>
+                      <option value={5}>★★★★★</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-1 text-[var(--muted)]">
+                    Sort
+                    <select
+                      className="field py-1 text-xs"
+                      value={sort}
+                      onChange={(e) =>
+                        setSort(e.target.value as ReviewSkimSort)
+                      }
+                    >
+                      <option value="relevance">Relevance</option>
+                      <option value="rating">Highest rating</option>
+                      <option value="newest">Newest</option>
+                    </select>
+                  </label>
+                </div>
+                {visibleReviews.length > 0 ? (
+                  <ul className="mt-2 space-y-3">
+                    {visibleReviews.map((review, index) => (
+                      <li
+                        key={`${review.authorName ?? "r"}-${review.publishTime ?? index}`}
+                        className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/60 px-3 py-2 text-sm"
+                      >
+                        <div className="flex items-start gap-2">
+                          {review.authorPhotoUri ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={review.authorPhotoUri}
+                              alt=""
+                              className="mt-0.5 h-8 w-8 rounded-full object-cover ring-1 ring-[var(--line)]"
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : null}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs text-[var(--muted)]">
+                              {typeof review.rating === "number"
+                                ? `★ ${review.rating}`
+                                : "Review"}
+                              {review.authorName ? (
+                                <>
+                                  {" · "}
+                                  {review.authorUri ? (
+                                    <a
+                                      href={review.authorUri}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[var(--accent)] underline-offset-2 hover:underline"
+                                    >
+                                      {review.authorName}
+                                    </a>
+                                  ) : (
+                                    review.authorName
+                                  )}
+                                </>
+                              ) : null}
+                              {review.relativeTime
+                                ? ` · ${review.relativeTime}`
+                                : ""}
+                              {visitLabel(review)
+                                ? ` · ${visitLabel(review)}`
+                                : ""}
+                            </p>
+                            {review.text ? (
+                              <p className="mt-1 text-[var(--ink)]">
+                                {review.text}
+                              </p>
+                            ) : null}
+                            {review.originalText &&
+                            review.originalText !== review.text ? (
+                              <p className="mt-1 text-xs text-[var(--muted)]">
+                                Original: {review.originalText}
+                              </p>
+                            ) : null}
+                            <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+                              {review.googleMapsUri ? (
                                 <a
-                                  href={review.authorUri}
+                                  href={review.googleMapsUri}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="text-[var(--accent)] underline-offset-2 hover:underline"
                                 >
-                                  {review.authorName}
+                                  View on Google Maps
                                 </a>
-                              ) : (
-                                review.authorName
-                              )}
-                            </>
-                          ) : null}
-                          {review.relativeTime
-                            ? ` · ${review.relativeTime}`
-                            : ""}
-                          {visitLabel(review)
-                            ? ` · ${visitLabel(review)}`
-                            : ""}
-                        </p>
-                        {review.text ? (
-                          <p className="mt-1 text-[var(--ink)]">{review.text}</p>
-                        ) : null}
-                        {review.originalText &&
-                        review.originalText !== review.text ? (
-                          <p className="mt-1 text-xs text-[var(--muted)]">
-                            Original: {review.originalText}
-                          </p>
-                        ) : null}
-                        <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
-                          {review.googleMapsUri ? (
-                            <a
-                              href={review.googleMapsUri}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[var(--accent)] underline-offset-2 hover:underline"
-                            >
-                              View on Google Maps
-                            </a>
-                          ) : null}
-                          {review.flagContentUri ? (
-                            <a
-                              href={review.flagContentUri}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[var(--muted)] underline-offset-2 hover:underline"
-                            >
-                              Report
-                            </a>
-                          ) : null}
-                        </p>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                              ) : null}
+                              {review.flagContentUri ? (
+                                <a
+                                  href={review.flagContentUri}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[var(--muted)] underline-offset-2 hover:underline"
+                                >
+                                  Report
+                                </a>
+                              ) : null}
+                            </p>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-[var(--muted)]">
+                    No reviews match this skim — try Any stars.
+                  </p>
+                )}
+              </>
             ) : (
               <p className="mt-2 text-sm text-[var(--muted)]">
                 No review sample from Places API.

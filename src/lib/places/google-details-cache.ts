@@ -32,13 +32,23 @@ export function getCachedGoogleDetails(
   return hit.details;
 }
 
+/**
+ * Cache Place Details metadata only — never retain review JSON / summary text
+ * (Phase 3). A cache hit still avoids a full Atmosphere re-bill for hours/photos
+ * when the client already has reviews from the live response; lookup paths that
+ * need reviews always use the live `getGooglePlaceDetails` payload.
+ */
 export function setCachedGoogleDetails(details: GooglePlaceDetails): void {
   const ttl = ttlMs();
   if (ttl === 0) {
     return;
   }
   store.set(details.placeId, {
-    details,
+    details: {
+      ...details,
+      reviews: [],
+      reviewSummary: undefined,
+    },
     expiresAt: Date.now() + ttl,
   });
 }
