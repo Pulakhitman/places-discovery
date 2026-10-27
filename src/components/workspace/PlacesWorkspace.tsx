@@ -26,6 +26,7 @@ import {
   type ResultFilters,
 } from "@/lib/places/filters";
 import { formatLatLng } from "@/lib/places/format";
+import { computeOsmCoverage } from "@/lib/places/coverage";
 import {
   DEFAULT_SEARCH_PREFS,
   loadSearchPrefs,
@@ -113,7 +114,12 @@ export function PlacesWorkspace() {
     if (searchState.status !== "ok") {
       return searchState;
     }
-    return { ...searchState, places: filteredPlaces };
+    // Coverage follows the visible (filtered) list so % matches what you see.
+    return {
+      ...searchState,
+      places: filteredPlaces,
+      coverage: computeOsmCoverage(filteredPlaces),
+    };
   }, [searchState, filteredPlaces]);
 
   const selectedPlace = useMemo(

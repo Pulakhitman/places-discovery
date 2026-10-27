@@ -405,7 +405,25 @@ function GoogleDetailsBlock({ details }: { details: GooglePlaceDetails }) {
 
       {details.reviews.length > 0 ? (
         <div>
-          <p className="text-sm font-medium text-[var(--ink)]">Reviews</p>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm font-medium text-[var(--ink)]">
+              Reviews ({details.reviews.length}
+              {typeof details.userRatingCount === "number"
+                ? ` of ${details.userRatingCount.toLocaleString()}`
+                : ""}
+              )
+            </p>
+            {details.googleMapsUri ? (
+              <a
+                href={details.googleMapsUri}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+              >
+                Read all on Google Maps
+              </a>
+            ) : null}
+          </div>
           <ul className="mt-2 space-y-3">
             {details.reviews.map((review, index) => (
               <li
@@ -425,13 +443,32 @@ function GoogleDetailsBlock({ details }: { details: GooglePlaceDetails }) {
               </li>
             ))}
           </ul>
+          <p className="mt-2 text-[11px] leading-relaxed text-[var(--muted)]">
+            Places API (New) returns a small review sample (up to 5). Full
+            threads stay on Google Maps — official API only, never scraped.
+          </p>
         </div>
       ) : (
-        <p className="text-sm text-[var(--muted)]">No reviews returned.</p>
+        <p className="text-sm text-[var(--muted)]">
+          No review sample from Places API.
+          {details.googleMapsUri ? (
+            <>
+              {" "}
+              <a
+                href={details.googleMapsUri}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+              >
+                Check Google Maps
+              </a>
+            </>
+          ) : null}
+        </p>
       )}
 
       <p className="text-[11px] text-[var(--muted)]">
-        {details.attribution} · display only
+        {details.attribution} · display only · not exported
       </p>
     </div>
   );

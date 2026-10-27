@@ -164,3 +164,33 @@ describe("computeOsmCoverage", () => {
     expect(coverage.addressPct).toBe(50);
   });
 });
+
+describe("contact tag fallbacks", () => {
+  it("maps contact:* and service_times into place fields", () => {
+    const [place] = parseOverpassElements(
+      [
+        {
+          type: "node",
+          id: 9,
+          lat: 37.77,
+          lon: -122.42,
+          tags: {
+            name: "Contact Cafe",
+            "contact:website": "https://contact.test",
+            "contact:phone": "+1 555",
+            service_times: "Mo-Fr 09:00-17:00",
+            "addr:place": "Market Hall",
+            "addr:suburb": "Mission",
+          },
+        },
+      ],
+      { center, categoryId: "cafes" },
+    );
+
+    expect(place.website).toBe("https://contact.test");
+    expect(place.phone).toBe("+1 555");
+    expect(place.hours).toBe("Mo-Fr 09:00-17:00");
+    expect(place.address).toContain("Market Hall");
+    expect(place.address).toContain("Mission");
+  });
+});

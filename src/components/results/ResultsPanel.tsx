@@ -292,18 +292,51 @@ function CoverageSummary({ coverage }: { coverage: FieldCoverage }) {
   if (coverage.total === 0) {
     return null;
   }
+
+  const rows: { label: string; count: number; pct: number }[] = [
+    { label: "Hours", count: coverage.withHours, pct: coverage.hoursPct },
+    { label: "Website", count: coverage.withWebsite, pct: coverage.websitePct },
+    { label: "Phone", count: coverage.withPhone, pct: coverage.phonePct },
+    { label: "Address", count: coverage.withAddress, pct: coverage.addressPct },
+  ];
+
+  const sparsest = rows.every((row) => row.pct === 0);
+
   return (
     <div
       className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]"
       aria-label="OSM field coverage"
     >
-      <p className="font-medium text-[var(--ink)]">OSM field coverage</p>
-      <ul className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5">
-        <li>Hours {coverage.hoursPct}%</li>
-        <li>Website {coverage.websitePct}%</li>
-        <li>Phone {coverage.phonePct}%</li>
-        <li>Address {coverage.addressPct}%</li>
+      <p className="font-medium text-[var(--ink)]">
+        OSM field coverage · {coverage.total} place
+        {coverage.total === 1 ? "" : "s"}
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {rows.map((row) => (
+          <li key={row.label}>
+            <div className="flex items-center justify-between gap-2">
+              <span>{row.label}</span>
+              <span className="tabular-nums text-[var(--ink)]">
+                {row.count}/{coverage.total} · {row.pct}%
+              </span>
+            </div>
+            <div
+              className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-[var(--line)]"
+              aria-hidden
+            >
+              <div
+                className="h-full rounded-full bg-[var(--accent)]"
+                style={{ width: `${Math.min(100, Math.max(0, row.pct))}%` }}
+              />
+            </div>
+          </li>
+        ))}
       </ul>
+      <p className="mt-2 text-[11px] leading-relaxed">
+        {sparsest
+          ? "OpenStreetMap often lacks hours/phone/website here — that is missing tags, not a broken counter. Tap a place for Google hours, ratings, and reviews."
+          : "Percentages are share of OSM places with that tag. Ratings/reviews come from Google when you open a place — never scraped."}
+      </p>
     </div>
   );
 }

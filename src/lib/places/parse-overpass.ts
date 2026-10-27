@@ -47,8 +47,12 @@ function formatAddress(tags: Record<string, string>): string | undefined {
   }
   const parts = [
     tags["addr:housenumber"],
-    tags["addr:street"],
-    tags["addr:city"] || tags["addr:town"] || tags["addr:village"],
+    tags["addr:street"] || tags["addr:place"],
+    tags["addr:suburb"] || tags["addr:neighbourhood"],
+    tags["addr:city"] ||
+      tags["addr:town"] ||
+      tags["addr:village"] ||
+      tags["addr:district"],
     tags["addr:postcode"],
   ]
     .map((p) => p?.trim())
@@ -59,26 +63,45 @@ function formatAddress(tags: Record<string, string>): string | undefined {
   return parts.join(", ");
 }
 
+function firstTag(
+  tags: Record<string, string>,
+  keys: readonly string[],
+): string | undefined {
+  for (const key of keys) {
+    const value = tags[key]?.trim();
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 function pickWebsite(tags: Record<string, string>): string | undefined {
-  return (
-    tags.website?.trim() ||
-    tags["contact:website"]?.trim() ||
-    tags.url?.trim() ||
-    undefined
-  );
+  return firstTag(tags, [
+    "website",
+    "contact:website",
+    "url",
+    "contact:url",
+    "website:en",
+  ]);
 }
 
 function pickPhone(tags: Record<string, string>): string | undefined {
-  return (
-    tags.phone?.trim() ||
-    tags["contact:phone"]?.trim() ||
-    tags["contact:mobile"]?.trim() ||
-    undefined
-  );
+  return firstTag(tags, [
+    "phone",
+    "contact:phone",
+    "contact:mobile",
+    "mobile",
+    "contact:whatsapp",
+  ]);
 }
 
 function pickHours(tags: Record<string, string>): string | undefined {
-  return tags.opening_hours?.trim() || undefined;
+  return firstTag(tags, [
+    "opening_hours",
+    "opening_hours:signed",
+    "service_times",
+  ]);
 }
 
 /**
