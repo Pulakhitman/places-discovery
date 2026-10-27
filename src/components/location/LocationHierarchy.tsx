@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { filterCountries, getAllCountries } from "@/lib/location/countries";
 import {
   bboxFromCenter,
@@ -19,6 +19,8 @@ import {
 import { enrichGeocodeBoundingBox } from "@/lib/location/enrich-bbox";
 import {
   breadcrumbLabels,
+  patchCountry,
+  patchGeocodeLevel,
   selectGeocodeLevel,
   setCountry,
   skipLevel,
@@ -36,6 +38,11 @@ type Props = {
 };
 
 export function LocationHierarchy({ selection, onChange }: Props) {
+  const selectionRef = useRef(selection);
+  useEffect(() => {
+    selectionRef.current = selection;
+  }, [selection]);
+
   const countries = useMemo(() => getAllCountries(), []);
   const [countryQuery, setCountryQuery] = useState("");
   const [countryOpen, setCountryOpen] = useState(false);
@@ -91,13 +98,8 @@ export function LocationHierarchy({ selection, onChange }: Props) {
       ) {
         return;
       }
-      onChange(
-        selectGeocodeLevel(
-          { ...selection, [level]: immediate },
-          level,
-          enriched,
-        ),
-      );
+      // Patch only — never selectGeocodeLevel here (that clears county/city).
+      onChange(patchGeocodeLevel(selectionRef.current, level, enriched));
     });
   };
 
@@ -136,16 +138,16 @@ export function LocationHierarchy({ selection, onChange }: Props) {
       if (!enriched.boundingBox) {
         return;
       }
-      onChange({
-        ...setCountry(selection, c),
-        country: {
+      // Patch only — setCountry would wipe region/county/city.
+      onChange(
+        patchCountry(selectionRef.current, {
           code: c.code,
           name: c.name,
           lat: enriched.lat,
           lng: enriched.lng,
           boundingBox: enriched.boundingBox,
-        },
-      });
+        }),
+      );
     });
   };
 

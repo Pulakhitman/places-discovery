@@ -4,6 +4,8 @@ import {
   clearGeocodeLevel,
   invalidateChildren,
   mapFocusFromSelection,
+  patchCountry,
+  patchGeocodeLevel,
   pickFromResults,
   selectGeocodeLevel,
   setCountry,
@@ -98,6 +100,42 @@ describe("hierarchy invalidate / reset", () => {
     expect(next.county).toBeUndefined();
     expect(next.city).toBeUndefined();
     expect(next.region).toEqual(region);
+  });
+
+  it("patchGeocodeLevel updates bbox without clearing children", () => {
+    const next = patchGeocodeLevel(fullSelection(), "region", {
+      ...region,
+      lat: 37,
+      lng: -120,
+      boundingBox: [36, 38, -121, -119],
+    });
+    expect(next.region?.lat).toBe(37);
+    expect(next.region?.boundingBox).toEqual([36, 38, -121, -119]);
+    expect(next.county).toEqual(county);
+    expect(next.city).toEqual(city);
+  });
+
+  it("patchGeocodeLevel ignores stale ids", () => {
+    const next = patchGeocodeLevel(fullSelection(), "county", {
+      ...county,
+      id: "stale",
+      boundingBox: [33, 35, -119, -117],
+    });
+    expect(next).toEqual(fullSelection());
+  });
+
+  it("patchCountry keeps region/county/city", () => {
+    const next = patchCountry(fullSelection(), {
+      code: "US",
+      name: "United States of America",
+      lat: 39,
+      lng: -98,
+      boundingBox: [24, 50, -125, -66],
+    });
+    expect(next.country?.lat).toBe(39);
+    expect(next.region).toEqual(region);
+    expect(next.county).toEqual(county);
+    expect(next.city).toEqual(city);
   });
 
   it("builds breadcrumb from selected levels only", () => {

@@ -53,6 +53,49 @@ export function selectGeocodeLevel(
   return invalidateChildren(withLevel, level);
 }
 
+/**
+ * Update lat/lng/bbox on an already-selected level without clearing children.
+ * Used for async Nominatim enrichment after CSC picks (county/city must stick).
+ */
+export function patchGeocodeLevel(
+  selection: LocationSelection,
+  level: Exclude<LocationLevel, "country">,
+  result: GeocodeResult,
+): LocationSelection {
+  const current = selection[level];
+  if (!current || current.id !== result.id) {
+    return selection;
+  }
+  return {
+    ...selection,
+    [level]: {
+      ...current,
+      ...result,
+      id: current.id,
+      adminCode: result.adminCode ?? current.adminCode,
+    },
+  };
+}
+
+/** Patch country coords/bbox without wiping region/county/city. */
+export function patchCountry(
+  selection: LocationSelection,
+  country: NonNullable<LocationSelection["country"]>,
+): LocationSelection {
+  if (!selection.country || selection.country.code !== country.code) {
+    return selection;
+  }
+  return {
+    ...selection,
+    country: {
+      ...selection.country,
+      ...country,
+      code: selection.country.code,
+      name: country.name || selection.country.name,
+    },
+  };
+}
+
 export function clearGeocodeLevel(
   selection: LocationSelection,
   level: Exclude<LocationLevel, "country">,
