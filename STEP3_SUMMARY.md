@@ -36,4 +36,4 @@ Compare drawer, coverage insights across sources, CSV/JSON/HTML exports (Google 
 
 ## What's next
 
-PD-4: Compare / filters / open-data exports (OSM only in export files).
+PD-4: Compare / filters / open-data exports (OSM only in export files) — see [`STEP4_SUMMARY.md`](./STEP4_SUMMARY.md).

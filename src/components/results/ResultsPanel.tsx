@@ -26,6 +26,9 @@ type Props = {
   radiusKm: SearchRadiusKm;
   customKeyword?: string;
   hasCenter: boolean;
+  compareIds?: string[];
+  onToggleCompare?: (id: string) => void;
+  compareLimit?: number;
 };
 
 function formatDistance(m: number): string {
@@ -55,6 +58,9 @@ export function ResultsPanel({
   radiusKm,
   customKeyword,
   hasCenter,
+  compareIds = [],
+  onToggleCompare,
+  compareLimit = 3,
 }: Props) {
   if (state.status === "idle" || state.status === "loading") {
     return (
@@ -138,15 +144,21 @@ export function ResultsPanel({
           >
             {state.places.map((place) => {
               const active = place.id === selectedId;
+              const inCompare = compareIds.includes(place.id);
+              const compareFull =
+                !inCompare && compareIds.length >= compareLimit;
               return (
                 <li key={place.id}>
-                  <button
-                    type="button"
-                    className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                  <div
+                    className={`rounded-lg border transition ${
                       active
                         ? "border-[var(--accent)] bg-[var(--surface-2)]"
-                        : "border-[var(--line)] bg-[var(--surface)] hover:bg-[var(--surface-2)]"
+                        : "border-[var(--line)] bg-[var(--surface)]"
                     }`}
+                  >
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 text-left hover:bg-[var(--surface-2)]/80"
                     aria-pressed={active}
                     onClick={() => onSelect(place.id)}
                   >
@@ -223,13 +235,36 @@ export function ResultsPanel({
                       </div>
                     </dl>
                   </button>
+                  {onToggleCompare ? (
+                    <div className="flex justify-end border-t border-[var(--line)] px-3 py-1.5">
+                      <button
+                        type="button"
+                        className={`text-xs font-semibold underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-45 ${
+                          inCompare
+                            ? "text-[var(--accent)]"
+                            : "text-[var(--muted)] hover:text-[var(--ink)]"
+                        }`}
+                        disabled={compareFull}
+                        aria-pressed={inCompare}
+                        onClick={() => onToggleCompare(place.id)}
+                      >
+                        {inCompare
+                          ? "Remove from compare"
+                          : compareFull
+                            ? `Compare full (${compareLimit})`
+                            : "Add to compare"}
+                      </button>
+                    </div>
+                  ) : null}
+                  </div>
                 </li>
               );
             })}
           </ul>
           <p className="text-[11px] text-[var(--muted)]">
             Coverage varies by area. Data © OpenStreetMap contributors, ODbL.
-            Tap a result to open details (Google hours/ratings when configured).
+            Tap a result for details; use Add to compare for side-by-side OSM
+            fields. Exports never include Google data.
           </p>
         </>
       )}

@@ -59,6 +59,7 @@ Compose uses `expose: ["3000"]` (no host `ports`) for Traefik. Health: `GET /api
 - **Step 1** — Scaffold, location hierarchy (full dropdowns), single Leaflet map. See [`STEP1_SUMMARY.md`](./STEP1_SUMMARY.md).
 - **Step 2** — Overpass nearby search, results list, markers + card sync, coverage. See [`STEP2_SUMMARY.md`](./STEP2_SUMMARY.md).
 - **Step 3** — Google Places details drawer (hours, ratings, reviews, photos via official API). See [`STEP3_SUMMARY.md`](./STEP3_SUMMARY.md).
+- **Step 4** — Result filters, compare tray, CSV/JSON/HTML exports (OSM only). See [`STEP4_SUMMARY.md`](./STEP4_SUMMARY.md).
 
 ## License / attribution
 

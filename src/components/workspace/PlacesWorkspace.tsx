@@ -1,9 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  CompareDrawer,
+} from "@/components/compare/CompareDrawer";
+import {
+  CompareTray,
+  MAX_COMPARE,
+} from "@/components/compare/CompareTray";
 import { PlaceDetailDrawer } from "@/components/details/PlaceDetailDrawer";
 import { LocationHierarchy } from "@/components/location/LocationHierarchy";
 import { MapWorkspaceLoader } from "@/components/map/MapWorkspaceLoader";
+import { ExportBar } from "@/components/results/ExportBar";
+import { ResultFiltersBar } from "@/components/results/ResultFiltersBar";
 import {
   ResultsPanel,
   type SearchState,
@@ -12,6 +21,11 @@ import { SearchControls } from "@/components/search/SearchControls";
 import { mapFocusFromSelection } from "@/lib/location/hierarchy";
 import type { LocationSelection, MapCenter } from "@/lib/location/types";
 import type { GoogleStatusResponse } from "@/lib/places/google-types";
+import {
+  DEFAULT_RESULT_FILTERS,
+  filterPlaces,
+  type ResultFilters,
+} from "@/lib/places/filters";
 import type {
   FieldCoverage,
   OsmPlace,
@@ -33,6 +47,9 @@ export function PlacesWorkspace() {
   const [googleConfigured, setGoogleConfigured] = useState<boolean | null>(
     null,
   );
+  const [filters, setFilters] = useState<ResultFilters>(DEFAULT_RESULT_FILTERS);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [compareOpen, setCompareOpen] = useState(false);
 
   const focus = useMemo(() => mapFocusFromSelection(selection), [selection]);
   const mapCenter = center ?? focus.center;
@@ -52,9 +69,29 @@ export function PlacesWorkspace() {
     );
   }, [mapCenter, category, radiusKm, customKeyword, searchState.status]);
 
+  const filteredPlaces = useMemo(
+    () => filterPlaces(places, filters),
+    [places, filters],
+  );
+
+  const resultsState = useMemo((): SearchState => {
+    if (searchState.status !== "ok") {
+      return searchState;
+    }
+    return { ...searchState, places: filteredPlaces };
+  }, [searchState, filteredPlaces]);
+
   const selectedPlace = useMemo(
     () => places.find((p) => p.id === selectedPlaceId) ?? null,
     [places, selectedPlaceId],
+  );
+
+  const comparePlaces = useMemo(
+    () =>
+      compareIds
+        .map((id) => places.find((p) => p.id === id))
+        .filter((p): p is OsmPlace => Boolean(p)),
+    [compareIds, places],
   );
 
   const handleSelectionChange = useCallback((next: LocationSelection) => {
@@ -79,6 +116,22 @@ export function PlacesWorkspace() {
       setDetailOpen(true);
     }
   }, [selectedPlaceId]);
+
+  const handleToggleCompare = useCallback((id: string) => {
+    setCompareIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((x) => x !== id);
+      }
+      if (prev.length >= MAX_COMPARE) {
+        return prev;
+      }
+      return [...prev, id];
+    });
+  }, []);
+
+  const handleRemoveCompare = useCallback((id: string) => {
+    setCompareIds((prev) => prev.filter((x) => x !== id));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,6 +161,9 @@ export function PlacesWorkspace() {
     setSearchState({ status: "loading" });
     setSelectedPlaceId(null);
     setDetailOpen(false);
+    setCompareIds([]);
+    setCompareOpen(false);
+    setFilters(DEFAULT_RESULT_FILTERS);
 
     try {
       const res = await fetch("/api/places/search", {
@@ -180,6 +236,8 @@ export function PlacesWorkspace() {
     }
   }, [mapCenter, radiusKm, category, customKeyword]);
 
+  const showTools = searchState.status === "ok" && places.length > 0;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:gap-6">
       {/* Map first on small screens so it stays usable above the fold */}
@@ -189,7 +247,7 @@ export function PlacesWorkspace() {
           boundingBox={focus.boundingBox}
           zoom={focus.zoom}
           radiusKm={radiusKm}
-          places={places}
+          places={showTools ? filteredPlaces : places}
           placeholders={mapPlaceholders}
           selectedPlaceId={selectedPlaceId}
           onCenterChange={setCenter}
@@ -230,8 +288,31 @@ export function PlacesWorkspace() {
           </p>
         )}
         <hr className="border-[var(--line)]" />
+
+        {showTools && (
+          <>
+            <ResultFiltersBar
+              filters={filters}
+              onChange={setFilters}
+              totalCount={places.length}
+              filteredCount={filteredPlaces.length}
+            />
+            <ExportBar places={filteredPlaces} />
+            <CompareTray
+              places={comparePlaces}
+              onRemove={handleRemoveCompare}
+              onClear={() => {
+                setCompareIds([]);
+                setCompareOpen(false);
+              }}
+              onOpenCompare={() => setCompareOpen(true)}
+            />
+            <hr className="border-[var(--line)]" />
+          </>
+        )}
+
         <ResultsPanel
-          state={searchState}
+          state={resultsState}
           selectedId={selectedPlaceId}
           onSelect={handleSelectPlace}
           onRetry={() => void runSearch()}
@@ -239,6 +320,9 @@ export function PlacesWorkspace() {
           radiusKm={radiusKm}
           customKeyword={customKeyword}
           hasCenter={Boolean(mapCenter)}
+          compareIds={compareIds}
+          onToggleCompare={showTools ? handleToggleCompare : undefined}
+          compareLimit={MAX_COMPARE}
         />
         <p className="text-xs text-[var(--muted)]">
           Center:{" "}
@@ -252,6 +336,15 @@ export function PlacesWorkspace() {
         place={selectedPlace}
         open={detailOpen && Boolean(selectedPlace)}
         onClose={handleCloseDetail}
+      />
+
+      <CompareDrawer
+        places={comparePlaces}
+        open={compareOpen && comparePlaces.length >= 2}
+        onClose={() => setCompareOpen(false)}
+        onRemove={(id) => {
+          handleRemoveCompare(id);
+        }}
       />
     </div>
   );
