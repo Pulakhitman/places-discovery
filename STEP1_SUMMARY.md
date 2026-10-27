@@ -6,11 +6,11 @@
 - Scripts: `dev`, `build`, `start`, `typecheck`, `lint`, `test`
 - `.env.example` with `GOOGLE_MAPS_*`, `NOMINATIM_URL`, `OVERPASS_URL`, `DOMAIN`, `TRAEFIK_*`, `AUTH_*`
 - Location hierarchy UI:
-  - Searchable complete ISO 3166 country list
-  - Region / county / city: search → dropdown of Nominatim matches
+  - Full scrollable dropdowns: ISO countries, regions/states, US counties, cities
+  - Non-US county: Nominatim search or Skip (no global static county dataset)
   - Never auto-selects the first result; explicit pick only
   - Skip level; parent change invalidates children; breadcrumb
-- Nominatim adapter (`NOMINATIM_URL`), timeouts, empty / error / rate-limit UI states
+- Nominatim adapter still available for non-US county search (`NOMINATIM_URL`)
 - **One** `MapWorkspace` (Leaflet + OSM tiles): world → selected area, draggable center pin, map click sets center, radius circle, OSM attribution
 - Search shell: category + radius dropdowns (search is a stub)
 - Minimal Dockerfile + `docker-compose.yml` with `expose` (not `ports`) and `/api/health`

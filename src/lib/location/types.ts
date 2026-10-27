@@ -13,6 +13,8 @@ export type GeocodeResult = {
   boundingBox?: [number, number, number, number];
   type?: string;
   importance?: number;
+  /** State/province ISO code when known (used for child city/county lists). */
+  adminCode?: string;
 };
 
 export type LocationSelection = {

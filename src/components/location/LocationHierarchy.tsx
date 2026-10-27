@@ -3,6 +3,15 @@
 import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { filterCountries, getAllCountries } from "@/lib/location/countries";
 import {
+  filterDivisions,
+  getCitiesForSelection,
+  getCountiesForRegion,
+  getRegionsForCountry,
+  hasStaticCountyList,
+  toGeocodeResult,
+  type DivisionOption,
+} from "@/lib/location/divisions";
+import {
   breadcrumbLabels,
   selectGeocodeLevel,
   setCountry,
@@ -20,18 +29,6 @@ type Props = {
   onChange: (next: LocationSelection) => void;
 };
 
-type LevelKey = "region" | "county" | "city";
-
-const LEVELS: { key: LevelKey; label: string; placeholder: string }[] = [
-  {
-    key: "region",
-    label: "Region / state",
-    placeholder: "Search region or state…",
-  },
-  { key: "county", label: "County", placeholder: "Search county…" },
-  { key: "city", label: "City", placeholder: "Search city…" },
-];
-
 export function LocationHierarchy({ selection, onChange }: Props) {
   const countries = useMemo(() => getAllCountries(), []);
   const [countryQuery, setCountryQuery] = useState("");
@@ -43,6 +40,28 @@ export function LocationHierarchy({ selection, onChange }: Props) {
     [countryQuery, countries],
   );
 
+  const regions = useMemo(
+    () =>
+      selection.country
+        ? getRegionsForCountry(selection.country.code)
+        : [],
+    [selection.country],
+  );
+
+  const counties = useMemo(() => {
+    if (!selection.country || !selection.region) {
+      return [];
+    }
+    return getCountiesForRegion(selection.country.code, selection.region);
+  }, [selection.country, selection.region]);
+
+  const cities = useMemo(() => {
+    if (!selection.country) {
+      return [];
+    }
+    return getCitiesForSelection(selection.country.code, selection.region);
+  }, [selection.country, selection.region]);
+
   const crumbs = breadcrumbLabels(selection);
 
   return (
@@ -51,13 +70,15 @@ export function LocationHierarchy({ selection, onChange }: Props) {
       className="flex flex-col gap-4"
     >
       <div className="flex flex-col gap-1">
-        <h2 id="location-heading" className="text-sm font-semibold tracking-wide text-[var(--ink)]">
+        <h2
+          id="location-heading"
+          className="text-sm font-semibold tracking-wide text-[var(--ink)]"
+        >
           Area
         </h2>
         <p className="text-sm text-[var(--muted)]">
-          Open Country to scroll the full ISO list (or type to filter). Then
-          optionally search region, county, and city — those levels come from
-          Nominatim, so pick a match from the results (never auto-selected).
+          Browse full dropdown lists for country, region/state, county (US), and
+          city. Nothing is auto-selected — pick an option, or Skip a level.
         </p>
       </div>
 
@@ -73,7 +94,13 @@ export function LocationHierarchy({ selection, onChange }: Props) {
                     /
                   </span>
                 )}
-                <span className={i === crumbs.length - 1 ? "font-medium text-[var(--ink)]" : undefined}>
+                <span
+                  className={
+                    i === crumbs.length - 1
+                      ? "font-medium text-[var(--ink)]"
+                      : undefined
+                  }
+                >
                   {label}
                 </span>
               </li>
@@ -82,162 +109,427 @@ export function LocationHierarchy({ selection, onChange }: Props) {
         )}
       </nav>
 
-      <div className="relative">
-        <div className="mb-1 flex items-center justify-between gap-2">
-          <label htmlFor="country-search" className="text-sm font-medium text-[var(--ink)]">
-            Country
-          </label>
-          <span className="text-xs text-[var(--muted)]">
-            {countries.length} countries — scroll or type to filter
-          </span>
-        </div>
-        <div className="flex gap-2">
-          <input
-            id="country-search"
-            type="search"
-            role="combobox"
-            aria-expanded={countryOpen}
-            aria-controls={countryListId}
-            aria-autocomplete="list"
-            autoComplete="off"
-            placeholder="Click to browse all, or type to filter…"
-            value={
-              countryOpen
-                ? countryQuery
-                : selection.country?.name ?? countryQuery
-            }
-            onChange={(e) => {
-              setCountryQuery(e.target.value);
-              setCountryOpen(true);
-            }}
-            onFocus={() => {
-              // Open with empty filter so the full country list is visible.
-              setCountryQuery("");
-              setCountryOpen(true);
-            }}
-            onBlur={() => {
-              // Delay so option click registers
-              window.setTimeout(() => setCountryOpen(false), 150);
-            }}
-            className="field"
-          />
-          <button
-            type="button"
-            className="shrink-0 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)] hover:bg-[var(--surface-2)]"
-            aria-expanded={countryOpen}
-            aria-controls={countryListId}
-            aria-label={countryOpen ? "Hide country list" : "Show all countries"}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              if (countryOpen) {
-                setCountryOpen(false);
-                return;
-              }
-              setCountryQuery("");
-              setCountryOpen(true);
-              document.getElementById("country-search")?.focus();
-            }}
-          >
-            {countryOpen ? "Hide" : "List"}
-          </button>
-        </div>
-        {countryOpen && (
-          <ul
-            id={countryListId}
-            role="listbox"
-            aria-label="All countries"
-            className="dropdown dropdown-tall"
-          >
-            <li className="sticky top-0 z-[1] border-b border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted)]">
-              {countryQuery.trim()
-                ? `${filteredCountries.length} match${filteredCountries.length === 1 ? "" : "es"}`
-                : `Showing all ${countries.length} countries`}
-            </li>
-            {filteredCountries.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-[var(--muted)]">No countries match</li>
-            ) : (
-              filteredCountries.map((c) => (
-                <li key={c.code} role="option" aria-selected={selection.country?.code === c.code}>
-                  <button
-                    type="button"
-                    className={`dropdown-item ${
-                      selection.country?.code === c.code ? "bg-[var(--surface-2)] font-medium" : ""
-                    }`}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      onChange(setCountry(selection, c));
-                      setCountryQuery(c.name);
-                      setCountryOpen(false);
-                    }}
-                  >
-                    <span>{c.name}</span>
-                    <span className="text-xs text-[var(--muted)]">{c.code}</span>
-                  </button>
-                </li>
-              ))
-            )}
-          </ul>
-        )}
-        {selection.country && (
-          <button
-            type="button"
-            className="mt-1 text-xs text-[var(--accent)] underline-offset-2 hover:underline"
-            onClick={() => {
-              onChange(setCountry(selection, undefined));
-              setCountryQuery("");
-            }}
-          >
-            Clear country
-          </button>
-        )}
-      </div>
+      <CountryField
+        countries={countries}
+        filtered={filteredCountries}
+        query={countryQuery}
+        open={countryOpen}
+        listId={countryListId}
+        selected={selection.country}
+        onQuery={(q) => {
+          setCountryQuery(q);
+          setCountryOpen(true);
+        }}
+        onOpen={() => {
+          setCountryQuery("");
+          setCountryOpen(true);
+        }}
+        onClose={() => setCountryOpen(false)}
+        onSelect={(c) => {
+          onChange(setCountry(selection, c));
+          setCountryQuery(c.name);
+          setCountryOpen(false);
+        }}
+        onClear={() => {
+          onChange(setCountry(selection, undefined));
+          setCountryQuery("");
+        }}
+      />
 
-      {LEVELS.map((level) => {
-        // Remount on parent change so local search state resets without an effect.
-        const resetKey = [
-          level.key,
-          selection.country?.code ?? "",
-          selection.region?.id ?? "",
-          selection.county?.id ?? "",
-        ].join(":");
-        return (
-          <GeocodeLevelField
-            key={resetKey}
-            level={level.key}
-            label={level.label}
-            placeholder={level.placeholder}
-            country={selection.country}
-            selected={selection[level.key]}
-            disabled={!selection.country}
-            onSelect={(result) =>
-              onChange(selectGeocodeLevel(selection, level.key, result))
-            }
-            onSkip={() => onChange(skipLevel(selection, level.key))}
-            onClear={() => onChange(skipLevel(selection, level.key))}
-          />
-        );
-      })}
+      <StaticDivisionField
+        key={`region:${selection.country?.code ?? ""}`}
+        id="region"
+        label="Region / state"
+        options={regions}
+        selected={selection.region}
+        disabled={!selection.country}
+        disabledHint="Select a country first"
+        emptyHint="No regions found for this country"
+        onSelect={(opt) =>
+          onChange(selectGeocodeLevel(selection, "region", toGeocodeResult(opt)))
+        }
+        onSkip={() => onChange(skipLevel(selection, "region"))}
+        onClear={() => onChange(skipLevel(selection, "region"))}
+      />
+
+      {selection.country && hasStaticCountyList(selection.country.code) ? (
+        <StaticDivisionField
+          key={`county:${selection.region?.id ?? ""}`}
+          id="county"
+          label="County"
+          options={counties}
+          selected={selection.county}
+          disabled={!selection.region}
+          disabledHint="Select a region / state first"
+          emptyHint="No counties for this state — Skip or pick another state"
+          onSelect={(opt) =>
+            onChange(
+              selectGeocodeLevel(selection, "county", toGeocodeResult(opt)),
+            )
+          }
+          onSkip={() => onChange(skipLevel(selection, "county"))}
+          onClear={() => onChange(skipLevel(selection, "county"))}
+        />
+      ) : (
+        <NominatimDivisionField
+          key={`county-search:${selection.country?.code ?? ""}:${selection.region?.id ?? ""}`}
+          id="county"
+          label="County"
+          level="county"
+          country={selection.country}
+          selected={selection.county}
+          disabled={!selection.country}
+          note="Full county lists ship for the US. Elsewhere, search Nominatim or Skip."
+          onSelect={(result) =>
+            onChange(selectGeocodeLevel(selection, "county", result))
+          }
+          onSkip={() => onChange(skipLevel(selection, "county"))}
+          onClear={() => onChange(skipLevel(selection, "county"))}
+        />
+      )}
+
+      <StaticDivisionField
+        key={`city:${selection.country?.code ?? ""}:${selection.region?.id ?? ""}`}
+        id="city"
+        label="City"
+        options={cities}
+        selected={selection.city}
+        disabled={!selection.country}
+        disabledHint="Select a country first"
+        emptyHint={
+          selection.region
+            ? "No cities for this region in the local list"
+            : "No cities found — pick a region first for a shorter list"
+        }
+        onSelect={(opt) =>
+          onChange(selectGeocodeLevel(selection, "city", toGeocodeResult(opt)))
+        }
+        onSkip={() => onChange(skipLevel(selection, "city"))}
+        onClear={() => onChange(skipLevel(selection, "city"))}
+      />
     </section>
   );
 }
 
-function GeocodeLevelField({
-  level,
+function CountryField({
+  countries,
+  filtered,
+  query,
+  open,
+  listId,
+  selected,
+  onQuery,
+  onOpen,
+  onClose,
+  onSelect,
+  onClear,
+}: {
+  countries: CountryOption[];
+  filtered: CountryOption[];
+  query: string;
+  open: boolean;
+  listId: string;
+  selected?: CountryOption;
+  onQuery: (q: string) => void;
+  onOpen: () => void;
+  onClose: () => void;
+  onSelect: (c: CountryOption) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="relative">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <label
+          htmlFor="country-search"
+          className="text-sm font-medium text-[var(--ink)]"
+        >
+          Country
+        </label>
+        <span className="text-xs text-[var(--muted)]">
+          {countries.length} countries — scroll or type to filter
+        </span>
+      </div>
+      <div className="flex gap-2">
+        <input
+          id="country-search"
+          type="search"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          autoComplete="off"
+          placeholder="Click to browse all, or type to filter…"
+          value={open ? query : (selected?.name ?? query)}
+          onChange={(e) => onQuery(e.target.value)}
+          onFocus={onOpen}
+          onBlur={() => {
+            window.setTimeout(onClose, 150);
+          }}
+          className="field"
+        />
+        <button
+          type="button"
+          className="shrink-0 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)] hover:bg-[var(--surface-2)]"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-label={open ? "Hide country list" : "Show all countries"}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            if (open) {
+              onClose();
+              return;
+            }
+            onOpen();
+            document.getElementById("country-search")?.focus();
+          }}
+        >
+          {open ? "Hide" : "List"}
+        </button>
+      </div>
+      {open && (
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label="All countries"
+          className="dropdown dropdown-tall"
+        >
+          <li className="sticky top-0 z-[1] border-b border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted)]">
+            {query.trim()
+              ? `${filtered.length} match${filtered.length === 1 ? "" : "es"}`
+              : `Showing all ${countries.length} countries`}
+          </li>
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-[var(--muted)]">
+              No countries match
+            </li>
+          ) : (
+            filtered.map((c) => (
+              <li
+                key={c.code}
+                role="option"
+                aria-selected={selected?.code === c.code}
+              >
+                <button
+                  type="button"
+                  className={`dropdown-item ${
+                    selected?.code === c.code
+                      ? "bg-[var(--surface-2)] font-medium"
+                      : ""
+                  }`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onSelect(c)}
+                >
+                  <span>{c.name}</span>
+                  <span className="text-xs text-[var(--muted)]">{c.code}</span>
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+      {selected && (
+        <button
+          type="button"
+          className="mt-1 text-xs text-[var(--accent)] underline-offset-2 hover:underline"
+          onClick={onClear}
+        >
+          Clear country
+        </button>
+      )}
+    </div>
+  );
+}
+
+function StaticDivisionField({
+  id,
   label,
-  placeholder,
-  country,
+  options,
   selected,
   disabled,
+  disabledHint,
+  emptyHint,
   onSelect,
   onSkip,
   onClear,
 }: {
-  level: LevelKey;
+  id: string;
   label: string;
-  placeholder: string;
+  options: DivisionOption[];
+  selected?: GeocodeResult;
+  disabled?: boolean;
+  disabledHint: string;
+  emptyHint: string;
+  onSelect: (option: DivisionOption) => void;
+  onSkip: () => void;
+  onClear: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  const filtered = useMemo(
+    () => filterDivisions(query, options),
+    [query, options],
+  );
+
+  return (
+    <div className="relative">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <label
+          htmlFor={`level-${id}`}
+          className="text-sm font-medium text-[var(--ink)]"
+        >
+          {label}
+        </label>
+        <div className="flex items-center gap-2">
+          {!disabled && (
+            <span className="text-xs text-[var(--muted)]">
+              {options.length} options
+            </span>
+          )}
+          {!disabled && (
+            <button
+              type="button"
+              className="text-xs text-[var(--muted)] underline-offset-2 hover:text-[var(--ink)] hover:underline"
+              onClick={onSkip}
+            >
+              Skip level
+            </button>
+          )}
+          {selected && (
+            <button
+              type="button"
+              className="text-xs text-[var(--accent)] underline-offset-2 hover:underline"
+              onClick={onClear}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      {selected ? (
+        <p className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--ink)]">
+          {selected.displayName}
+        </p>
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <input
+              id={`level-${id}`}
+              type="search"
+              role="combobox"
+              aria-expanded={open}
+              aria-controls={listId}
+              aria-autocomplete="list"
+              autoComplete="off"
+              disabled={disabled}
+              placeholder={disabled ? disabledHint : `Browse all ${label.toLowerCase()}s…`}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => {
+                if (!disabled) {
+                  setQuery("");
+                  setOpen(true);
+                }
+              }}
+              onBlur={() => {
+                window.setTimeout(() => setOpen(false), 150);
+              }}
+              className="field"
+            />
+            <button
+              type="button"
+              className="shrink-0 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm text-[var(--ink)] hover:bg-[var(--surface-2)] disabled:opacity-50"
+              disabled={disabled}
+              aria-expanded={open}
+              aria-controls={listId}
+              aria-label={open ? `Hide ${label} list` : `Show all ${label} options`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                if (open) {
+                  setOpen(false);
+                  return;
+                }
+                setQuery("");
+                setOpen(true);
+                document.getElementById(`level-${id}`)?.focus();
+              }}
+            >
+              {open ? "Hide" : "List"}
+            </button>
+          </div>
+
+          {open && !disabled && (
+            <ul
+              id={listId}
+              role="listbox"
+              aria-label={`${label} options`}
+              className="dropdown dropdown-tall"
+            >
+              <li className="sticky top-0 z-[1] border-b border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted)]">
+                {options.length === 0
+                  ? emptyHint
+                  : query.trim()
+                    ? `${filtered.length} match${filtered.length === 1 ? "" : "es"}`
+                    : `Showing all ${options.length} options`}
+              </li>
+              {options.length === 0 ? null : filtered.length === 0 ? (
+                <li className="px-3 py-2 text-sm text-[var(--muted)]">
+                  No matches
+                </li>
+              ) : (
+                filtered.map((opt) => (
+                  <li key={opt.id} role="option" aria-selected={false}>
+                    <button
+                      type="button"
+                      className="dropdown-item text-left"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        onSelect(opt);
+                        setQuery("");
+                        setOpen(false);
+                      }}
+                    >
+                      <span>{opt.name}</span>
+                      {opt.subtitle ? (
+                        <span className="text-xs text-[var(--muted)]">
+                          {opt.subtitle}
+                        </span>
+                      ) : null}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function NominatimDivisionField({
+  id,
+  label,
+  level,
+  country,
+  selected,
+  disabled,
+  note,
+  onSelect,
+  onSkip,
+  onClear,
+}: {
+  id: string;
+  label: string;
+  level: "county";
   country?: CountryOption;
   selected?: GeocodeResult;
   disabled?: boolean;
+  note: string;
   onSelect: (result: GeocodeResult) => void;
   onSkip: () => void;
   onClear: () => void;
@@ -275,7 +567,6 @@ function GeocodeLevelField({
           status?: string;
           message?: string;
           retryAfterSec?: number;
-          query?: string;
         };
 
         if (controller.signal.aborted) {
@@ -307,7 +598,6 @@ function GeocodeLevelField({
           return;
         }
 
-        // Intentionally do NOT auto-select results[0]
         setState({ status: "results", query: q, results });
         setOpen(true);
       } catch (err) {
@@ -324,21 +614,13 @@ function GeocodeLevelField({
     [country, level],
   );
 
-  const onQueryChange = (value: string) => {
-    setQuery(value);
-    setOpen(true);
-    if (debounceRef.current) {
-      window.clearTimeout(debounceRef.current);
-    }
-    debounceRef.current = window.setTimeout(() => {
-      void runSearch(value);
-    }, 350);
-  };
-
   return (
     <div className="relative">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <label htmlFor={`level-${level}`} className="text-sm font-medium text-[var(--ink)]">
+        <label
+          htmlFor={`level-${id}`}
+          className="text-sm font-medium text-[var(--ink)]"
+        >
           {label}
         </label>
         <div className="flex items-center gap-2">
@@ -362,6 +644,7 @@ function GeocodeLevelField({
           )}
         </div>
       </div>
+      <p className="mb-1 text-xs text-[var(--muted)]">{note}</p>
 
       {selected ? (
         <p className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--ink)]">
@@ -370,7 +653,7 @@ function GeocodeLevelField({
       ) : (
         <>
           <input
-            id={`level-${level}`}
+            id={`level-${id}`}
             type="search"
             role="combobox"
             aria-expanded={open && state.status === "results"}
@@ -378,17 +661,23 @@ function GeocodeLevelField({
             aria-autocomplete="list"
             autoComplete="off"
             disabled={disabled}
-            placeholder={disabled ? "Select a country first" : placeholder}
+            placeholder={
+              disabled ? "Select a country first" : "Search county…"
+            }
             value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            onFocus={() => {
-              if (state.status === "results") {
-                setOpen(true);
+            onChange={(e) => {
+              const value = e.target.value;
+              setQuery(value);
+              setOpen(true);
+              if (debounceRef.current) {
+                window.clearTimeout(debounceRef.current);
               }
+              debounceRef.current = window.setTimeout(() => {
+                void runSearch(value);
+              }, 350);
             }}
             className="field"
           />
-
           {state.status === "loading" && (
             <p className="mt-1 text-xs text-[var(--muted)]" role="status">
               Searching…
@@ -396,54 +685,37 @@ function GeocodeLevelField({
           )}
           {state.status === "empty" && (
             <p className="mt-1 text-xs text-[var(--muted)]" role="status">
-              No matches for “{state.query}”. Try a different spelling.
+              No matches for “{state.query}”.
             </p>
           )}
           {state.status === "error" && (
             <p className="mt-1 text-xs text-[var(--danger)]" role="alert">
-              {state.message}{" "}
-              {state.retryable && (
-                <button
-                  type="button"
-                  className="underline"
-                  onClick={() => void runSearch(query)}
-                >
-                  Retry
-                </button>
-              )}
+              {state.message}
             </p>
           )}
           {state.status === "rate_limited" && (
             <p className="mt-1 text-xs text-[var(--warn)]" role="alert">
               {state.message}
-              {state.retryAfterSec
-                ? ` Try again in ~${state.retryAfterSec}s.`
-                : ""}{" "}
-              <button
-                type="button"
-                className="underline"
-                onClick={() => void runSearch(query)}
-              >
-                Retry
-              </button>
             </p>
           )}
-
           {open && state.status === "results" && (
-            <ul id={listId} role="listbox" aria-label={`${label} matches`} className="dropdown">
-              {state.results.map((result, index) => (
+            <ul
+              id={listId}
+              role="listbox"
+              aria-label={`${label} matches`}
+              className="dropdown dropdown-tall"
+            >
+              {state.results.map((result) => (
                 <li key={result.id} role="option" aria-selected={false}>
                   <button
                     type="button"
                     className="dropdown-item text-left"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
-                      // Explicit user pick only — never auto-select first
                       onSelect(result);
                       setQuery("");
                       setOpen(false);
                       setState({ status: "idle" });
-                      void index;
                     }}
                   >
                     {result.displayName}
