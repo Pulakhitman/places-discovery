@@ -1,10 +1,20 @@
 /** Google Places API (New) — display-only types. Never export these fields. */
 
+import type { GoogleMatchInfo } from "./google-match";
+
 export type GooglePlaceReview = {
   rating?: number;
   text?: string;
+  originalText?: string;
   authorName?: string;
+  authorUri?: string;
+  authorPhotoUri?: string;
   relativeTime?: string;
+  publishTime?: string;
+  googleMapsUri?: string;
+  flagContentUri?: string;
+  visitDateMonth?: number;
+  visitDateYear?: number;
 };
 
 export type GooglePlacePhoto = {
@@ -31,12 +41,15 @@ export type GooglePlaceDetails = {
   reviews: GooglePlaceReview[];
   photos: GooglePlacePhoto[];
   primaryType?: string;
+  /** Prefer “Google Maps” for review blocks. */
   attribution: string;
 };
 
 export type GoogleLookupSuccess = {
   status: "ok";
   details: GooglePlaceDetails;
+  /** Present for OSM→Google name lookup; omitted for direct placeId fetches. */
+  match?: GoogleMatchInfo;
 };
 
 export type GoogleLookupEmpty = {
@@ -65,3 +78,5 @@ export type GoogleStatusResponse = {
   configured: boolean;
   message: string;
 };
+
+export type { GoogleMatchInfo };

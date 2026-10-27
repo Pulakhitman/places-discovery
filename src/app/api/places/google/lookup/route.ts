@@ -57,14 +57,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const details = await lookupGoogleForPlace({
+    const result = await lookupGoogleForPlace({
       name,
       lat,
       lng,
       radiusM: Number.isFinite(radiusM) ? radiusM : 400,
     });
 
-    if (!details) {
+    if (!result) {
       const body: GoogleLookupResponse = {
         status: "empty",
         message: "No matching Google Place found nearby.",
@@ -72,7 +72,11 @@ export async function POST(request: Request) {
       return NextResponse.json(body);
     }
 
-    const body: GoogleLookupResponse = { status: "ok", details };
+    const body: GoogleLookupResponse = {
+      status: "ok",
+      details: result.details,
+      match: result.match,
+    };
     return NextResponse.json(body);
   } catch (err) {
     if (err instanceof GooglePlacesError) {

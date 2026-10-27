@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
   GoogleLookupResponse,
+  GoogleMatchInfo,
   GooglePlaceDetails,
+  GooglePlaceReview,
   GoogleStatusResponse,
 } from "@/lib/places/google-types";
 import {
@@ -19,7 +21,7 @@ type GoogleState =
   | { status: "unavailable"; message: string }
   | { status: "empty"; message: string }
   | { status: "error"; message: string; retryable: boolean }
-  | { status: "ok"; details: GooglePlaceDetails };
+  | { status: "ok"; details: GooglePlaceDetails; match: GoogleMatchInfo };
 
 type Props = {
   place: OsmPlace | null;
@@ -49,9 +51,11 @@ function PlaceDetailDrawerInner({
   const [retryNonce, setRetryNonce] = useState(0);
   const [google, setGoogle] = useState<GoogleState>({ status: "loading" });
   const [configuredHint, setConfiguredHint] = useState<string | null>(null);
+  const [acceptedWeakMatch, setAcceptedWeakMatch] = useState(false);
 
   const retryGoogle = useCallback(() => {
     setGoogle({ status: "loading" });
+    setAcceptedWeakMatch(false);
     setRetryNonce((n) => n + 1);
   }, []);
 
@@ -116,7 +120,19 @@ function PlaceDetailDrawerInner({
           return;
         }
         if (data.status === "ok") {
-          setGoogle({ status: "ok", details: data.details });
+          const match = data.match ?? {
+            confidence: "strong" as const,
+            distanceM: 0,
+            nameSimilarity: 1,
+            queriedName: place.name,
+            googleName: data.details.name,
+          };
+          setGoogle({
+            status: "ok",
+            details: data.details,
+            match,
+          });
+          setAcceptedWeakMatch(match.confidence === "strong");
           return;
         }
         if (data.status === "unavailable") {
@@ -271,7 +287,13 @@ function PlaceDetailDrawerInner({
             )}
 
             {google.status === "ok" && (
-              <GoogleDetailsBlock details={google.details} />
+              <GoogleDetailsBlock
+                details={google.details}
+                match={google.match}
+                osmName={place.name}
+                acceptedWeakMatch={acceptedWeakMatch}
+                onAcceptWeakMatch={() => setAcceptedWeakMatch(true)}
+              />
             )}
           </section>
 
@@ -339,136 +361,263 @@ function CopyButton({ label, value }: { label: string; value: string }) {
   );
 }
 
-function GoogleDetailsBlock({ details }: { details: GooglePlaceDetails }) {
+function visitLabel(review: GooglePlaceReview): string | null {
+  if (review.visitDateMonth && review.visitDateYear) {
+    return `Visited ${review.visitDateMonth}/${review.visitDateYear}`;
+  }
+  return null;
+}
+
+function GoogleDetailsBlock({
+  details,
+  match,
+  osmName,
+  acceptedWeakMatch,
+  onAcceptWeakMatch,
+}: {
+  details: GooglePlaceDetails;
+  match: GoogleMatchInfo;
+  osmName: string;
+  acceptedWeakMatch: boolean;
+  onAcceptWeakMatch: () => void;
+}) {
+  const showRich =
+    match.confidence === "strong" || acceptedWeakMatch;
+
   return (
     <div className="mt-2 space-y-3">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
-        {typeof details.rating === "number" ? (
-          <p className="font-semibold text-[var(--ink)]">
-            ★ {details.rating.toFixed(1)}
-            {typeof details.userRatingCount === "number" ? (
-              <span className="ml-1 font-normal text-[var(--muted)]">
-                ({details.userRatingCount.toLocaleString()} reviews)
-              </span>
-            ) : null}
-          </p>
-        ) : (
-          <p className="text-[var(--muted)]">No rating available</p>
-        )}
-        {details.googleMapsUri ? (
-          <a
-            href={details.googleMapsUri}
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-[var(--accent)] underline-offset-2 hover:underline"
+      <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">
+        <p className="font-medium text-[var(--ink)]" translate="no">
+          Google Maps match
+        </p>
+        <p className="mt-1 text-sm text-[var(--ink)]">
+          <span className="font-semibold">{details.name}</span>
+          {details.name !== osmName ? (
+            <span className="font-normal text-[var(--muted)]">
+              {" "}
+              (OSM: {osmName})
+            </span>
+          ) : null}
+        </p>
+        <p className="mt-0.5">
+          {formatDistance(match.distanceM)} from pin · name similarity{" "}
+          {Math.round(match.nameSimilarity * 100)}% ·{" "}
+          <span
+            className={
+              match.confidence === "strong"
+                ? "font-semibold text-[var(--accent)]"
+                : "font-semibold text-[var(--danger)]"
+            }
           >
-            Open in Google Maps
-          </a>
+            {match.confidence} match
+          </span>
+        </p>
+        {match.confidence === "weak" && !acceptedWeakMatch ? (
+          <div className="mt-2 space-y-2">
+            <p>
+              This Google place may not be the same as the OSM result. Confirm
+              before loading photos and reviews.
+            </p>
+            <button
+              type="button"
+              className="btn-primary text-xs"
+              onClick={onAcceptWeakMatch}
+            >
+              Use this Google match
+            </button>
+          </div>
         ) : null}
       </div>
 
-      <dl className="space-y-2 text-sm">
-        <Row label="Address" value={details.address} />
-        <Row label="Phone" value={details.phone} />
-        <Row label="Website" value={details.website} link />
-      </dl>
-
-      {details.hoursWeekday && details.hoursWeekday.length > 0 ? (
-        <div>
-          <p className="text-sm font-medium text-[var(--ink)]">Hours</p>
-          <ul className="mt-1 space-y-0.5 text-xs text-[var(--muted)]">
-            {details.hoursWeekday.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {details.photos.length > 0 ? (
-        <div>
-          <p className="text-sm font-medium text-[var(--ink)]">Photos</p>
-          <ul className="mt-2 flex gap-2 overflow-x-auto pb-1">
-            {details.photos.map((photo) => (
-              <li key={photo.name} className="shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={photo.mediaUrl}
-                  alt=""
-                  className="h-24 w-32 rounded-md object-cover ring-1 ring-[var(--line)]"
-                  loading="lazy"
-                />
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {details.reviews.length > 0 ? (
-        <div>
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm font-medium text-[var(--ink)]">
-              Reviews ({details.reviews.length}
-              {typeof details.userRatingCount === "number"
-                ? ` of ${details.userRatingCount.toLocaleString()}`
-                : ""}
-              )
-            </p>
+      {!showRich ? (
+        <p className="text-sm text-[var(--muted)]">
+          Confirm the match above to show Google hours, photos, and reviews.
+        </p>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+            {typeof details.rating === "number" ? (
+              <p className="font-semibold text-[var(--ink)]">
+                ★ {details.rating.toFixed(1)}
+                {typeof details.userRatingCount === "number" ? (
+                  <span className="ml-1 font-normal text-[var(--muted)]">
+                    ({details.userRatingCount.toLocaleString()} reviews)
+                  </span>
+                ) : null}
+              </p>
+            ) : (
+              <p className="text-[var(--muted)]">No rating available</p>
+            )}
             {details.googleMapsUri ? (
               <a
                 href={details.googleMapsUri}
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                className="text-xs text-[var(--accent)] underline-offset-2 hover:underline"
               >
-                Read all on Google Maps
+                Open in Google Maps
               </a>
             ) : null}
           </div>
-          <ul className="mt-2 space-y-3">
-            {details.reviews.map((review, index) => (
-              <li
-                key={`${review.authorName ?? "r"}-${index}`}
-                className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/60 px-3 py-2 text-sm"
-              >
-                <p className="text-xs text-[var(--muted)]">
-                  {typeof review.rating === "number"
-                    ? `★ ${review.rating}`
-                    : "Review"}
-                  {review.authorName ? ` · ${review.authorName}` : ""}
-                  {review.relativeTime ? ` · ${review.relativeTime}` : ""}
-                </p>
-                {review.text ? (
-                  <p className="mt-1 text-[var(--ink)]">{review.text}</p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-[11px] leading-relaxed text-[var(--muted)]">
-            Places API (New) returns a small review sample (up to 5). Full
-            threads stay on Google Maps — official API only, never scraped.
-          </p>
-        </div>
-      ) : (
-        <p className="text-sm text-[var(--muted)]">
-          No review sample from Places API.
-          {details.googleMapsUri ? (
-            <>
-              {" "}
-              <a
-                href={details.googleMapsUri}
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
-              >
-                Check Google Maps
-              </a>
-            </>
+
+          <dl className="space-y-2 text-sm">
+            <Row label="Address" value={details.address} />
+            <Row label="Phone" value={details.phone} />
+            <Row label="Website" value={details.website} link />
+          </dl>
+
+          {details.hoursWeekday && details.hoursWeekday.length > 0 ? (
+            <div>
+              <p className="text-sm font-medium text-[var(--ink)]">Hours</p>
+              <ul className="mt-1 space-y-0.5 text-xs text-[var(--muted)]">
+                {details.hoursWeekday.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
           ) : null}
-        </p>
+
+          {details.photos.length > 0 ? (
+            <div>
+              <p className="text-sm font-medium text-[var(--ink)]">Photos</p>
+              <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {details.photos.map((photo) => (
+                  <li key={photo.name}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photo.mediaUrl}
+                      alt=""
+                      className="aspect-[4/3] w-full rounded-md object-cover ring-1 ring-[var(--line)]"
+                      loading="lazy"
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <div>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-sm font-medium text-[var(--ink)]">
+                Reviews
+                {details.reviews.length > 0
+                  ? ` (${details.reviews.length}${
+                      typeof details.userRatingCount === "number"
+                        ? ` of ${details.userRatingCount.toLocaleString()}`
+                        : ""
+                    })`
+                  : ""}
+              </p>
+              {details.googleMapsUri ? (
+                <a
+                  href={details.googleMapsUri}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                >
+                  Read all on Google Maps
+                </a>
+              ) : null}
+            </div>
+            <p className="mt-1 text-[11px] text-[var(--muted)]">
+              Ordered by relevance. This is the sample Google returned — not the
+              full review list.
+            </p>
+            {details.reviews.length > 0 ? (
+              <ul className="mt-2 space-y-3">
+                {details.reviews.map((review, index) => (
+                  <li
+                    key={`${review.authorName ?? "r"}-${index}`}
+                    className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/60 px-3 py-2 text-sm"
+                  >
+                    <div className="flex items-start gap-2">
+                      {review.authorPhotoUri ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={review.authorPhotoUri}
+                          alt=""
+                          className="mt-0.5 h-8 w-8 rounded-full object-cover ring-1 ring-[var(--line)]"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : null}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-[var(--muted)]">
+                          {typeof review.rating === "number"
+                            ? `★ ${review.rating}`
+                            : "Review"}
+                          {review.authorName ? (
+                            <>
+                              {" · "}
+                              {review.authorUri ? (
+                                <a
+                                  href={review.authorUri}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[var(--accent)] underline-offset-2 hover:underline"
+                                >
+                                  {review.authorName}
+                                </a>
+                              ) : (
+                                review.authorName
+                              )}
+                            </>
+                          ) : null}
+                          {review.relativeTime
+                            ? ` · ${review.relativeTime}`
+                            : ""}
+                          {visitLabel(review)
+                            ? ` · ${visitLabel(review)}`
+                            : ""}
+                        </p>
+                        {review.text ? (
+                          <p className="mt-1 text-[var(--ink)]">{review.text}</p>
+                        ) : null}
+                        {review.originalText &&
+                        review.originalText !== review.text ? (
+                          <p className="mt-1 text-xs text-[var(--muted)]">
+                            Original: {review.originalText}
+                          </p>
+                        ) : null}
+                        <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+                          {review.googleMapsUri ? (
+                            <a
+                              href={review.googleMapsUri}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[var(--accent)] underline-offset-2 hover:underline"
+                            >
+                              View on Google Maps
+                            </a>
+                          ) : null}
+                          {review.flagContentUri ? (
+                            <a
+                              href={review.flagContentUri}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[var(--muted)] underline-offset-2 hover:underline"
+                            >
+                              Report
+                            </a>
+                          ) : null}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                No review sample from Places API.
+              </p>
+            )}
+          </div>
+        </>
       )}
 
-      <p className="text-[11px] text-[var(--muted)]">
-        {details.attribution} · display only · not exported
+      <p className="text-[11px] text-[var(--muted)]" translate="no">
+        {details.attribution} · display only · never exported · official API
+        only
       </p>
     </div>
   );

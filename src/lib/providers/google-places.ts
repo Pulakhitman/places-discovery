@@ -1,3 +1,8 @@
+import {
+  getCachedGoogleDetails,
+  setCachedGoogleDetails,
+} from "@/lib/places/google-details-cache";
+import { scoreGoogleMatch, type GoogleMatchInfo } from "@/lib/places/google-match";
 import type {
   GooglePlaceDetails,
   GooglePlacePhoto,
@@ -7,7 +12,7 @@ import type { PlaceCategoryId } from "@/lib/search/categories";
 import { googleIncludedTypes } from "@/lib/search/google-types-map";
 
 const PLACES_BASE = "https://places.googleapis.com/v1";
-const ATTRIBUTION = "Google";
+const ATTRIBUTION = "Google Maps";
 
 export type GooglePlacesErrorKind =
   | "not_configured"
@@ -66,9 +71,19 @@ type GooglePlaceRaw = {
   regularOpeningHours?: { weekdayDescriptions?: string[] };
   reviews?: Array<{
     rating?: number;
-    text?: { text?: string };
-    authorAttribution?: { displayName?: string };
+    text?: { text?: string; languageCode?: string };
+    originalText?: { text?: string; languageCode?: string };
+    authorAttribution?: {
+      displayName?: string;
+      uri?: string;
+      photoUri?: string;
+    };
     relativePublishTimeDescription?: string;
+    publishTime?: string;
+    googleMapsUri?: string;
+    flagContentUri?: string;
+    visitDateMonth?: number;
+    visitDateYear?: number;
   }>;
   photos?: Array<{
     name?: string;
@@ -85,6 +100,13 @@ const NEARBY_FIELD_MASK = [
   "places.rating",
   "places.userRatingCount",
   "places.primaryType",
+].join(",");
+
+/** Slim match mask — avoids Enterprise rating SKU on Text Search for OSM↔Google. */
+const MATCH_FIELD_MASK = [
+  "places.id",
+  "places.displayName",
+  "places.location",
 ].join(",");
 
 const DETAILS_FIELD_MASK = [
@@ -177,15 +199,23 @@ export function mapGooglePlaceDetails(
     .map((r) => ({
       rating: r.rating,
       text: r.text?.text?.trim() || undefined,
+      originalText: r.originalText?.text?.trim() || undefined,
       authorName: r.authorAttribution?.displayName?.trim() || undefined,
+      authorUri: r.authorAttribution?.uri?.trim() || undefined,
+      authorPhotoUri: r.authorAttribution?.photoUri?.trim() || undefined,
       relativeTime: r.relativePublishTimeDescription?.trim() || undefined,
+      publishTime: r.publishTime?.trim() || undefined,
+      googleMapsUri: r.googleMapsUri?.trim() || undefined,
+      flagContentUri: r.flagContentUri?.trim() || undefined,
+      visitDateMonth: r.visitDateMonth,
+      visitDateYear: r.visitDateYear,
     }));
 
   const photos: GooglePlacePhoto[] = (raw.photos ?? [])
     .filter((p): p is { name: string; widthPx?: number; heightPx?: number } =>
       Boolean(p.name?.trim()),
     )
-    .slice(0, 4)
+    .slice(0, 6)
     .map((p) => ({
       name: p.name!,
       widthPx: p.widthPx,
@@ -280,6 +310,8 @@ export async function searchGoogleText(params: {
   radiusM: number;
   textQuery: string;
   maxResultCount?: number;
+  /** Use slim id/name/location mask for OSM→Google matching (cheaper). */
+  matchOnly?: boolean;
 }): Promise<GooglePlaceDetails[]> {
   const textQuery = params.textQuery.trim();
   if (!textQuery) {
@@ -288,7 +320,7 @@ export async function searchGoogleText(params: {
 
   const res = await placesFetch("/places:searchText", {
     method: "POST",
-    fieldMask: TEXT_FIELD_MASK,
+    fieldMask: params.matchOnly ? MATCH_FIELD_MASK : TEXT_FIELD_MASK,
     body: JSON.stringify({
       textQuery,
       maxResultCount: params.maxResultCount ?? 5,
@@ -326,10 +358,18 @@ export async function getGooglePlaceDetails(
     return null;
   }
 
-  const res = await placesFetch(`/places/${encodeURIComponent(id)}`, {
-    method: "GET",
-    fieldMask: DETAILS_FIELD_MASK,
-  });
+  const cached = getCachedGoogleDetails(id);
+  if (cached) {
+    return cached;
+  }
+
+  const res = await placesFetch(
+    `/places/${encodeURIComponent(id)}?languageCode=en`,
+    {
+      method: "GET",
+      fieldMask: DETAILS_FIELD_MASK,
+    },
+  );
 
   if (res.status === 404) {
     return null;
@@ -339,8 +379,17 @@ export async function getGooglePlaceDetails(
   }
 
   const raw = (await res.json()) as GooglePlaceRaw;
-  return mapGooglePlaceDetails(raw);
+  const details = mapGooglePlaceDetails(raw);
+  if (details) {
+    setCachedGoogleDetails(details);
+  }
+  return details;
 }
+
+export type GoogleLookupResult = {
+  details: GooglePlaceDetails;
+  match: GoogleMatchInfo;
+};
 
 /**
  * Match an OSM-ish name near coordinates to a Google place, then load details.
@@ -350,7 +399,7 @@ export async function lookupGoogleForPlace(params: {
   lat: number;
   lng: number;
   radiusM?: number;
-}): Promise<GooglePlaceDetails | null> {
+}): Promise<GoogleLookupResult | null> {
   const name = params.name.trim();
   if (!name || name.toLowerCase().startsWith("unnamed")) {
     return null;
@@ -362,6 +411,7 @@ export async function lookupGoogleForPlace(params: {
     radiusM: params.radiusM ?? 400,
     textQuery: name,
     maxResultCount: 3,
+    matchOnly: true,
   });
 
   const best = matches[0];
@@ -369,9 +419,18 @@ export async function lookupGoogleForPlace(params: {
     return null;
   }
 
-  // Nearby/text summary may omit reviews/hours — fetch full details.
-  const details = await getGooglePlaceDetails(best.placeId);
-  return details ?? best;
+  const match = scoreGoogleMatch({
+    queriedName: name,
+    googleName: best.name,
+    queryLat: params.lat,
+    queryLng: params.lng,
+    googleLat: best.lat,
+    googleLng: best.lng,
+  });
+
+  // Text summary omits reviews/hours — fetch full details (cached by placeId).
+  const details = (await getGooglePlaceDetails(best.placeId)) ?? best;
+  return { details, match };
 }
 
 /**

@@ -23,3 +23,9 @@ Implement Phase 1 when requested.
 
 ## Cost shape
 Keep reviews off Nearby/Text. One Atmosphere Details call beats splitting hours vs reviews. Phase 3 slim match to id/name/location.
+## Phase 1 implemented (cursor/main-stack-reviews-e515)
+- Full review fields (author/avatar/links/report/visitDate/originalText)
+- Match confidence + weak-match confirm before photos/reviews
+- In-memory Place Details TTL cache (`GOOGLE_PLACES_DETAILS_CACHE_TTL_MS`)
+- Slim Text Search match mask; Google Maps attribution; photo grid polish
+- Google remains display-only — never exported

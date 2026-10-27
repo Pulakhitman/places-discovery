@@ -34,7 +34,41 @@ describe("mapGooglePlaceDetails", () => {
     expect(details?.rating).toBe(4.6);
     expect(details?.reviews[0]?.text).toBe("Great park");
     expect(details?.photos[0]?.mediaUrl).toContain("/api/places/google/photo");
-    expect(details?.attribution).toBe("Google");
+    expect(details?.attribution).toBe("Google Maps");
+  });
+
+  it("maps review attribution and report links", () => {
+    const details = mapGooglePlaceDetails({
+      id: "ChIJrev",
+      displayName: { text: "Cafe" },
+      location: { latitude: 1, longitude: 2 },
+      reviews: [
+        {
+          rating: 4,
+          text: { text: "Nice" },
+          originalText: { text: "Bon" },
+          authorAttribution: {
+            displayName: "Sam",
+            uri: "https://maps.google.com/contrib/1",
+            photoUri: "https://example.com/a.jpg",
+          },
+          googleMapsUri: "https://maps.google.com/?cid=1",
+          flagContentUri: "https://www.google.com/local/review/rap/report?postId=1",
+          visitDateMonth: 3,
+          visitDateYear: 2024,
+        },
+      ],
+    });
+    expect(details?.reviews[0]).toMatchObject({
+      text: "Nice",
+      originalText: "Bon",
+      authorName: "Sam",
+      authorUri: "https://maps.google.com/contrib/1",
+      authorPhotoUri: "https://example.com/a.jpg",
+      googleMapsUri: "https://maps.google.com/?cid=1",
+      visitDateMonth: 3,
+      visitDateYear: 2024,
+    });
   });
 
   it("returns null when required fields are missing", () => {
