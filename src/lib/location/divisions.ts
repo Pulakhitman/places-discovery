@@ -52,6 +52,26 @@ export function getRegionsForCountry(countryCode: string): DivisionOption[] {
  * Full county lists are available for the United States (by state).
  * Other countries: empty — UI should offer search or Skip.
  */
+function usStateNameForCounties(
+  countryCode: string,
+  region: Pick<GeocodeResult, "adminCode" | "displayName">,
+): string {
+  const cc = countryCode.toUpperCase();
+  // Prefer ISO → official CSC state name (stable after Nominatim enrich).
+  if (region.adminCode) {
+    const fromIso = State.getStateByCodeAndCountry(region.adminCode, cc);
+    if (fromIso?.name) {
+      return fromIso.name;
+    }
+  }
+  const raw = (region.displayName || "").trim();
+  if (!raw) {
+    return "";
+  }
+  // Nominatim may return "California, United States" — package wants "California".
+  return raw.split(",")[0]?.trim() || raw;
+}
+
 export function getCountiesForRegion(
   countryCode: string,
   region: Pick<GeocodeResult, "adminCode" | "displayName" | "lat" | "lng">,
@@ -60,13 +80,15 @@ export function getCountiesForRegion(
     return [];
   }
 
-  // Package accepts full state name ("California"); CSC stores iso "CA".
-  const stateKey = region.displayName || region.adminCode || "";
-  const rows = getCountyByState(stateKey) as Array<{
-    name?: string;
-    stateAbbr?: string;
-    FIPS?: string;
-  }>;
+  // Package accepts full state name ("California"), not ISO "CA".
+  const stateKey = usStateNameForCounties(countryCode, region);
+  const rows = stateKey
+    ? (getCountyByState(stateKey) as Array<{
+        name?: string;
+        stateAbbr?: string;
+        FIPS?: string;
+      }>)
+    : [];
 
   const normalized = Array.isArray(rows) ? rows : [];
   const options: DivisionOption[] = [];

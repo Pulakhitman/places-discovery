@@ -45,8 +45,8 @@ export async function enrichGeocodeBoundingBox(params: {
     }
     return {
       ...fallback,
-      // Keep CSC id/adminCode; prefer Nominatim display + coords + bbox.
-      displayName: hit.displayName || fallback.displayName,
+      // Keep CSC short displayName + id/adminCode so US county lists still resolve
+      // (getCountyByState needs "California", not "California, United States").
       lat: hit.lat,
       lng: hit.lng,
       boundingBox: hit.boundingBox,
