@@ -119,8 +119,11 @@ export function ResultsPanel({
       : `${meta.radiusKm ?? "?"} km radius`;
 
   return (
-    <section aria-labelledby="results-heading" className="flex min-h-0 flex-col gap-3">
-      <div>
+    <section
+      aria-labelledby="results-heading"
+      className="flex min-h-0 flex-1 flex-col gap-2"
+    >
+      <header className="shrink-0 space-y-1">
         <h2
           id="results-heading"
           className="text-sm font-semibold tracking-wide text-[var(--ink)]"
@@ -129,30 +132,34 @@ export function ResultsPanel({
           {count === 1 ? "" : "s"}
         </h2>
         <p className="text-xs text-[var(--muted)]">
-          Searched {formatTime(meta.searchedAt)} · {meta.attribution} ({meta.license})
+          Searched {formatTime(meta.searchedAt)}
         </p>
-      </div>
+      </header>
 
       {state.status === "empty" ? (
-        <div
-          className="rounded-lg border border-dashed border-[var(--line)] bg-[var(--surface-2)]/60 px-3 py-3"
-          role="status"
-        >
-          <p className="text-sm font-medium text-[var(--ink)]">
-            No OpenStreetMap places found
-          </p>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {meta.mode === "area"
-              ? "Nothing matched this category inside the selected area. Try a denser city/county, another category, or switch to radius search."
-              : "Nothing matched this category in the current radius. Try a larger radius, another category, or pick a busier area on the map."}
+        <div className="space-y-2">
+          <div
+            className="rounded-lg border border-dashed border-[var(--line)] bg-[var(--surface-2)]/60 px-3 py-3"
+            role="status"
+          >
+            <p className="text-sm font-medium text-[var(--ink)]">
+              No OpenStreetMap places found
+            </p>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              {meta.mode === "area"
+                ? "Nothing matched this category inside the selected area. Try a denser city/county, another category, or switch to radius search."
+                : "Nothing matched this category in the current radius. Try a larger radius, another category, or pick a busier area on the map."}
+            </p>
+          </div>
+          <p className="text-[11px] leading-relaxed text-[var(--muted)]">
+            Data: {meta.attribution} ({meta.license})
           </p>
         </div>
       ) : (
         <>
-          <CoverageSummary coverage={state.coverage} />
           {state.places.length === 0 && filtersActive ? (
             <p
-              className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted)]"
+              className="shrink-0 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted)]"
               role="status"
             >
               No places match the current filters.{" "}
@@ -168,7 +175,7 @@ export function ResultsPanel({
             </p>
           ) : null}
           <ul
-            className="flex max-h-[min(28rem,55vh)] flex-col gap-2 overflow-y-auto overscroll-contain pr-1"
+            className="min-h-0 flex-1 list-none space-y-2 overflow-y-auto overscroll-contain pr-1"
             aria-label="Place results"
           >
             {state.places.map((place) => {
@@ -294,11 +301,17 @@ export function ResultsPanel({
               );
             })}
           </ul>
-          <p className="text-[11px] leading-relaxed text-[var(--muted)]">
-            Coverage varies by area — empty fields mean missing OSM tags, not a
-            broken search. Tap a result for Google hours, ratings, and reviews
-            when configured. Exports never include Google data.
-          </p>
+          <div className="shrink-0 space-y-2 border-t border-[var(--line)] pt-2">
+            <CoverageSummary coverage={state.coverage} />
+            <p className="text-[11px] leading-relaxed text-[var(--muted)]">
+              Coverage varies by area — empty fields mean missing OSM tags, not a
+              broken search. Tap a result for Google hours, ratings, and reviews
+              when configured. Exports never include Google data.
+            </p>
+            <p className="text-[11px] leading-relaxed text-[var(--muted)]">
+              Data: {meta.attribution} ({meta.license})
+            </p>
+          </div>
         </>
       )}
     </section>
@@ -377,14 +390,14 @@ function CoverageSummary({ coverage }: { coverage: FieldCoverage }) {
   const mostlyUnnamed = coverage.namedPct > 0 && coverage.namedPct < 40;
 
   return (
-    <div
+    <details
       className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]"
       aria-label="OSM field coverage"
     >
-      <p className="font-medium text-[var(--ink)]">
+      <summary className="cursor-pointer font-medium text-[var(--ink)]">
         OSM field coverage · {coverage.total} place
         {coverage.total === 1 ? "" : "s"}
-      </p>
+      </summary>
       <ul className="mt-2 space-y-1.5">
         {rows.map((row) => (
           <li key={row.label}>
@@ -415,7 +428,7 @@ function CoverageSummary({ coverage }: { coverage: FieldCoverage }) {
             ? "Many places lack a name tag (shown in italics). Filter to “Named only” if you need labeled results. Percentages are share of OSM places with that field."
             : "Percentages are share of OSM places with that tag. Ratings/reviews come from Google when you open a place — never scraped."}
       </p>
-    </div>
+    </details>
   );
 }
 

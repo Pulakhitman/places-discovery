@@ -93,7 +93,12 @@ function PlaceDetailDrawerInner({
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/places/google/status");
+        const res = await fetch("/api/places/google/status", {
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          throw new Error(`status ${res.status}`);
+        }
         const data = (await res.json()) as GoogleStatusResponse;
         if (!cancelled) {
           setConfiguredHint(data.message);

@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
+import { connection, NextResponse } from "next/server";
 
 /**
  * GET /api/maps/browser-config
  * Browser Maps JS key is intentionally public (restrict by HTTP referrer in GCP).
  * Returns the key only when GOOGLE_MAPS_BROWSER_KEY is set.
+ * Runtime env via connection() so Docker runtime .env is respected.
  */
 export async function GET() {
+  await connection();
   const apiKey = process.env.GOOGLE_MAPS_BROWSER_KEY?.trim() || "";
   const enabled = Boolean(apiKey);
   return NextResponse.json({

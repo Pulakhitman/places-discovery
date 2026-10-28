@@ -22,7 +22,6 @@ import {
   mapFocusFromSelection,
 } from "@/lib/location/hierarchy";
 import type { LocationSelection, MapCenter } from "@/lib/location/types";
-import type { GoogleStatusResponse } from "@/lib/places/google-types";
 import {
   DEFAULT_RESULT_FILTERS,
   filterPlaces,
@@ -268,10 +267,17 @@ export function PlacesWorkspace() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/places/google/status");
-        const data = (await res.json()) as GoogleStatusResponse;
+        // Prefer public /api/health (dynamic via connection()) so the banner
+        // matches production runtime env — not a prerendered status response.
+        const res = await fetch("/api/health", { cache: "no-store" });
+        if (!res.ok) {
+          throw new Error(`health ${res.status}`);
+        }
+        const data = (await res.json()) as {
+          googlePlacesConfigured?: boolean;
+        };
         if (!cancelled) {
-          setGoogleConfigured(data.configured);
+          setGoogleConfigured(Boolean(data.googlePlacesConfigured));
         }
       } catch {
         if (!cancelled) {
@@ -446,113 +452,115 @@ export function PlacesWorkspace() {
         />
       </div>
 
-      <aside className="order-2 flex w-full shrink-0 flex-col gap-6 overflow-y-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm lg:order-1 lg:max-h-[calc(100vh-8rem)] lg:w-[22rem] xl:w-[24rem]">
-        <LocationHierarchy
-          selection={selection}
-          onChange={handleSelectionChange}
-        />
-        <hr className="border-[var(--line)]" />
-        <SearchControls
-          category={category}
-          searchMode={searchMode}
-          radiusKm={radiusKm}
-          customKeyword={customKeyword}
-          areaLabel={areaLabel}
-          hasAreaBBox={Boolean(selectedAreaBBox)}
-          areaTooLarge={areaTooLarge}
-          loading={searchState.status === "loading"}
-          onCategoryChange={setCategory}
-          onSearchModeChange={setSearchMode}
-          onRadiusChange={setRadiusKm}
-          onCustomKeywordChange={setCustomKeyword}
-          onSearch={() => void runSearch()}
-          disabled={searchMode === "radius" ? !mapCenter : false}
-        />
-        {googleConfigured !== null && (
-          <p
-            className={`rounded-md border px-3 py-2 text-xs ${
-              googleConfigured
-                ? "border-[var(--accent)]/30 bg-[color-mix(in_oklab,var(--accent)_8%,transparent)] text-[var(--ink)]"
-                : "border-[var(--line)] bg-[var(--surface-2)] text-[var(--muted)]"
-            }`}
-            role="status"
-          >
-            {googleConfigured
-              ? "Google Places details: on — tap a result for hours, ratings, and reviews."
-              : "Google Places details: off — set GOOGLE_MAPS_API_KEY in .env to enable."}
-          </p>
-        )}
-        <GoogleUsagePanel refreshKey={usageRefresh} />
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <button
-            type="button"
-            className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]"
-            onClick={copyShareLink}
-          >
-            {linkCopied ? "Link copied" : "Copy share link"}
-          </button>
-          <span className="text-[var(--muted)]">
-            Deep-links lat, lng, radius, category, and mode in the URL.
-          </span>
-        </div>
-        <hr className="border-[var(--line)]" />
-
-        {showTools && (
-          <>
-            <ResultFiltersBar
-              filters={filters}
-              onChange={setFilters}
-              sort={sort}
-              onSortChange={setSort}
-              totalCount={places.length}
-              filteredCount={filteredPlaces.length}
-            />
-            <ExportBar places={filteredPlaces} />
-            <CompareTray
-              places={comparePlaces}
-              onRemove={handleRemoveCompare}
-              onClear={() => {
-                setCompareIds([]);
-                setCompareOpen(false);
-              }}
-              onOpenCompare={() => setCompareOpen(true)}
-            />
-            <hr className="border-[var(--line)]" />
-          </>
-        )}
-
-        <ResultsPanel
-          state={resultsState}
-          selectedId={selectedPlaceId}
-          onSelect={handleSelectPlace}
-          onRetry={() => void runSearch()}
-          category={category}
-          radiusKm={radiusKm}
-          customKeyword={customKeyword}
-          hasCenter={Boolean(mapCenter)}
-          compareIds={compareIds}
-          onToggleCompare={showTools ? handleToggleCompare : undefined}
-          compareLimit={MAX_COMPARE}
-          filtersActive={filtersActive}
-          onClearFilters={() => setFilters(DEFAULT_RESULT_FILTERS)}
-        />
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
-          <span>
-            Center:{" "}
-            {mapCenter
-              ? formatLatLng(mapCenter.lat, mapCenter.lng)
-              : "not set — pick a country/area or tap the map"}
-          </span>
-          {mapCenter ? (
+      <aside className="order-2 flex w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-sm lg:order-1 lg:max-h-[calc(100vh-8rem)] lg:w-[22rem] xl:w-[24rem]">
+        <div className="flex max-h-[min(42vh,22rem)] shrink-0 flex-col gap-4 overflow-y-auto overscroll-contain border-b border-[var(--line)] p-4 lg:max-h-[38%]">
+          <LocationHierarchy
+            selection={selection}
+            onChange={handleSelectionChange}
+          />
+          <hr className="border-[var(--line)]" />
+          <SearchControls
+            category={category}
+            searchMode={searchMode}
+            radiusKm={radiusKm}
+            customKeyword={customKeyword}
+            areaLabel={areaLabel}
+            hasAreaBBox={Boolean(selectedAreaBBox)}
+            areaTooLarge={areaTooLarge}
+            loading={searchState.status === "loading"}
+            onCategoryChange={setCategory}
+            onSearchModeChange={setSearchMode}
+            onRadiusChange={setRadiusKm}
+            onCustomKeywordChange={setCustomKeyword}
+            onSearch={() => void runSearch()}
+            disabled={searchMode === "radius" ? !mapCenter : false}
+          />
+          {googleConfigured !== null && (
+            <p
+              className={`rounded-md border px-3 py-2 text-xs ${
+                googleConfigured
+                  ? "border-[var(--accent)]/30 bg-[color-mix(in_oklab,var(--accent)_8%,transparent)] text-[var(--ink)]"
+                  : "border-[var(--line)] bg-[var(--surface-2)] text-[var(--muted)]"
+              }`}
+              role="status"
+            >
+              {googleConfigured
+                ? "Google Places details: on — tap a result for hours, ratings, and reviews."
+                : "Google Places details: off — set GOOGLE_MAPS_API_KEY in .env to enable."}
+            </p>
+          )}
+          <GoogleUsagePanel refreshKey={usageRefresh} />
+          <div className="flex flex-wrap items-center gap-2 text-xs">
             <button
               type="button"
-              className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
-              onClick={copyCenter}
+              className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]"
+              onClick={copyShareLink}
             >
-              {coordsCopied ? "Copied" : "Copy"}
+              {linkCopied ? "Link copied" : "Copy share link"}
             </button>
+            <span className="text-[var(--muted)]">
+              Deep-links lat, lng, radius, category, and mode in the URL.
+            </span>
+          </div>
+          {showTools ? (
+            <>
+              <hr className="border-[var(--line)]" />
+              <ResultFiltersBar
+                filters={filters}
+                onChange={setFilters}
+                sort={sort}
+                onSortChange={setSort}
+                totalCount={places.length}
+                filteredCount={filteredPlaces.length}
+              />
+              <ExportBar places={filteredPlaces} />
+              <CompareTray
+                places={comparePlaces}
+                onRemove={handleRemoveCompare}
+                onClear={() => {
+                  setCompareIds([]);
+                  setCompareOpen(false);
+                }}
+                onOpenCompare={() => setCompareOpen(true)}
+              />
+            </>
           ) : null}
-        </p>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
+            <span>
+              Center:{" "}
+              {mapCenter
+                ? formatLatLng(mapCenter.lat, mapCenter.lng)
+                : "not set — pick a country/area or tap the map"}
+            </span>
+            {mapCenter ? (
+              <button
+                type="button"
+                className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                onClick={copyCenter}
+              >
+                {coordsCopied ? "Copied" : "Copy"}
+              </button>
+            ) : null}
+          </p>
+        </div>
+
+        <div className="flex min-h-[18rem] flex-1 flex-col overflow-hidden p-4 pt-3">
+          <ResultsPanel
+            state={resultsState}
+            selectedId={selectedPlaceId}
+            onSelect={handleSelectPlace}
+            onRetry={() => void runSearch()}
+            category={category}
+            radiusKm={radiusKm}
+            customKeyword={customKeyword}
+            hasCenter={Boolean(mapCenter)}
+            compareIds={compareIds}
+            onToggleCompare={showTools ? handleToggleCompare : undefined}
+            compareLimit={MAX_COMPARE}
+            filtersActive={filtersActive}
+            onClearFilters={() => setFilters(DEFAULT_RESULT_FILTERS)}
+          />
+        </div>
       </aside>
 
       <PlaceDetailDrawer
