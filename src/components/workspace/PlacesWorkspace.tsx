@@ -435,8 +435,8 @@ export function PlacesWorkspace() {
   }, [mapCenter]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:gap-6">
-      <div className="order-1 h-[min(42vh,22rem)] min-h-[240px] w-full shrink-0 sm:h-[48vh] lg:order-2 lg:h-auto lg:min-h-[28rem] lg:flex-1">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row lg:gap-6">
+      <div className="order-1 h-[min(36vh,18rem)] min-h-[200px] w-full shrink-0 sm:h-[40vh] lg:order-2 lg:h-auto lg:min-h-0 lg:flex-1">
         <MapWorkspaceLoader
           center={mapCenter}
           boundingBox={focus.boundingBox}
@@ -452,8 +452,13 @@ export function PlacesWorkspace() {
         />
       </div>
 
-      <aside className="order-2 flex w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-sm lg:order-1 lg:max-h-[calc(100vh-8rem)] lg:w-[22rem] xl:w-[24rem]">
-        <div className="flex max-h-[min(42vh,22rem)] shrink-0 flex-col gap-4 overflow-y-auto overscroll-contain border-b border-[var(--line)] p-4 lg:max-h-[38%]">
+      {/*
+        Sidebar height chain: parents use min-h-0 + overflow-hidden so this
+        column gets a bounded height. Only the results scroll region uses
+        overflow-y-auto — never overflow-hidden on the list itself.
+      */}
+      <aside className="order-2 flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-sm lg:order-1 lg:w-[22rem] lg:flex-none xl:w-[24rem]">
+        <div className="max-h-[42%] shrink-0 space-y-3 overflow-y-auto overscroll-contain border-b border-[var(--line)] p-4">
           <LocationHierarchy
             selection={selection}
             onChange={handleSelectionChange}
@@ -544,7 +549,7 @@ export function PlacesWorkspace() {
           </p>
         </div>
 
-        <div className="flex min-h-[18rem] flex-1 flex-col overflow-hidden p-4 pt-3">
+        <div className="flex min-h-0 flex-1 flex-col p-4 pt-3">
           <ResultsPanel
             state={resultsState}
             selectedId={selectedPlaceId}

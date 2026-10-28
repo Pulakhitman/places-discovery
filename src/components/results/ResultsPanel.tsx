@@ -75,10 +75,13 @@ export function ResultsPanel({
 
   if (state.status === "error" || state.status === "rate_limited") {
     return (
-      <section aria-labelledby="results-heading" className="flex flex-col gap-2">
+      <section
+        aria-labelledby="results-heading"
+        className="flex min-h-0 flex-1 flex-col gap-2"
+      >
         <h2
           id="results-heading"
-          className="text-sm font-semibold tracking-wide text-[var(--ink)]"
+          className="shrink-0 text-sm font-semibold tracking-wide text-[var(--ink)]"
         >
           Results
         </h2>
@@ -121,7 +124,7 @@ export function ResultsPanel({
   return (
     <section
       aria-labelledby="results-heading"
-      className="flex min-h-0 flex-1 flex-col gap-2"
+      className="flex h-full min-h-0 flex-1 flex-col gap-2"
     >
       <header className="shrink-0 space-y-1">
         <h2
@@ -137,7 +140,7 @@ export function ResultsPanel({
       </header>
 
       {state.status === "empty" ? (
-        <div className="space-y-2">
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
           <div
             className="rounded-lg border border-dashed border-[var(--line)] bg-[var(--surface-2)]/60 px-3 py-3"
             role="status"
@@ -156,10 +159,13 @@ export function ResultsPanel({
           </p>
         </div>
       ) : (
-        <>
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"
+          data-results-scroll=""
+        >
           {state.places.length === 0 && filtersActive ? (
             <p
-              className="shrink-0 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted)]"
+              className="mb-2 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted)]"
               role="status"
             >
               No places match the current filters.{" "}
@@ -174,10 +180,7 @@ export function ResultsPanel({
               ) : null}
             </p>
           ) : null}
-          <ul
-            className="min-h-0 flex-1 list-none space-y-2 overflow-y-auto overscroll-contain pr-1"
-            aria-label="Place results"
-          >
+          <ul className="list-none space-y-2" aria-label="Place results">
             {state.places.map((place) => {
               const active = place.id === selectedId;
               const inCompare = compareIds.includes(place.id);
@@ -301,7 +304,7 @@ export function ResultsPanel({
               );
             })}
           </ul>
-          <div className="shrink-0 space-y-2 border-t border-[var(--line)] pt-2">
+          <div className="mt-3 space-y-2 border-t border-[var(--line)] pb-1 pt-2">
             <CoverageSummary coverage={state.coverage} />
             <p className="text-[11px] leading-relaxed text-[var(--muted)]">
               Coverage varies by area — empty fields mean missing OSM tags, not a
@@ -312,7 +315,7 @@ export function ResultsPanel({
               Data: {meta.attribution} ({meta.license})
             </p>
           </div>
-        </>
+        </div>
       )}
     </section>
   );
