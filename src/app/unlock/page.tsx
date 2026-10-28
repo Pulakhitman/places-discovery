@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { UnlockForm } from "@/components/auth/UnlockForm";
 import { isAccessKeyConfigured } from "@/lib/auth/access-key";
 
+export const instant = false;
+
 export default function UnlockPage() {
   if (!isAccessKeyConfigured()) {
     redirect("/");
