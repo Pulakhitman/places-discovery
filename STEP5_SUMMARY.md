@@ -5,8 +5,8 @@
 - Docker image installs `wget` so container healthchecks work on Alpine
 - `docker-compose.yml` Traefik labels + basic security headers middleware
 - `docker-compose.local.yml` — run on host port **3001** without an external Traefik network
-- Optional **HTTP Basic Auth** via `AUTH_USER` + `AUTH_PASSWORD` (middleware); `/api/health` stays public
-- Health payload reports `googlePlacesConfigured` / `basicAuthConfigured` (booleans only)
+- Optional **ACCESS_KEY** gate (unlock page + httpOnly cookie); `/api/health` stays public
+- Health payload reports `googlePlacesConfigured` / `accessKeyConfigured` (booleans only)
 - `TODO.md` parks Google enablement and other follow-ups for later
 
 ## How to run (local Docker)

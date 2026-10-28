@@ -17,8 +17,8 @@ Parked items — finish the shippable app first (PD-5), then do these when ready
 
 - [ ] Optional Google Maps JS basemap in the same Leaflet map container
 - [ ] Coverage insights that compare OSM vs Google field presence (display only)
-- [ ] Stronger Traefik edge Basic Auth (in addition to app middleware)
-- [ ] Multi-user accounts (replace optional shared Basic Auth)
+- [ ] Stronger Traefik edge auth (in addition to app ACCESS_KEY middleware)
+- [ ] Multi-user accounts (replace optional shared ACCESS_KEY)
 - [ ] Merge stacked PRs (#1→#2→#3→#4→#5) into `main` when ready
 
 ## Already done (Steps 1–4)
