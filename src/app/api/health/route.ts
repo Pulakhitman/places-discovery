@@ -1,10 +1,10 @@
 import { connection, NextResponse } from "next/server";
-import { isBasicAuthConfigured } from "@/lib/auth/basic-auth";
+import { isAccessKeyConfigured } from "@/lib/auth/access-key";
 import { isGooglePlacesConfigured } from "@/lib/providers/google-places";
 
 /**
  * GET /api/health
- * Public even when Basic Auth is enabled (load balancers / Docker).
+ * Public even when the access-key gate is enabled (load balancers / Docker).
  * Never returns secret values.
  */
 export async function GET() {
@@ -14,6 +14,6 @@ export async function GET() {
     service: "places-discovery",
     ts: new Date().toISOString(),
     googlePlacesConfigured: isGooglePlacesConfigured(),
-    basicAuthConfigured: isBasicAuthConfigured(),
+    accessKeyConfigured: isAccessKeyConfigured(),
   });
 }

@@ -39,7 +39,7 @@ See [`.env.example`](./.env.example). Important keys:
 | `GOOGLE_PLACES_TIMEOUT_MS` | Google Places client timeout (default 15000) |
 | `GOOGLE_MAPS_BROWSER_KEY` | Optional Maps JS in the same map container |
 | `DOMAIN`, `TRAEFIK_*` | Traefik / Docker labels |
-| `AUTH_USER`, `AUTH_PASSWORD` | Optional Basic Auth pair |
+| `ACCESS_KEY` | Optional shared unlock key (httpOnly cookie gate) |
 
 Respect Nominatim and Overpass usage policies on public instances.
 
@@ -63,7 +63,7 @@ docker compose up --build -d
 
 Compose uses `expose: ["3000"]` for Traefik (no host ports unless you use the local override). Health: `GET /api/health`.
 
-Optional Basic Auth: set both `AUTH_USER` and `AUTH_PASSWORD` (health stays public).
+Optional access gate: set `ACCESS_KEY` (unlock page + httpOnly cookie; health stays public).
 
 ## Status
 
@@ -71,7 +71,7 @@ Optional Basic Auth: set both `AUTH_USER` and `AUTH_PASSWORD` (health stays publ
 - **Step 2** — Overpass nearby search, results list, markers + card sync, coverage. See [`STEP2_SUMMARY.md`](./STEP2_SUMMARY.md).
 - **Step 3** — Google Places details drawer (hours, ratings, reviews, photos via official API). See [`STEP3_SUMMARY.md`](./STEP3_SUMMARY.md).
 - **Step 4** — Result filters, compare tray, CSV/JSON/HTML exports (OSM only). See [`STEP4_SUMMARY.md`](./STEP4_SUMMARY.md).
-- **Step 5** — Docker / Traefik polish, optional Basic Auth. See [`STEP5_SUMMARY.md`](./STEP5_SUMMARY.md).
+- **Step 5** — Docker / Traefik polish, optional access-key gate. See [`STEP5_SUMMARY.md`](./STEP5_SUMMARY.md).
 - **Later** — Google key enablement and follow-ups in [`TODO.md`](./TODO.md).
 
 ## License / attribution
