@@ -59,7 +59,7 @@ body {
 
 .dropdown {
   position: absolute;
-  z-index: 40;
+  z-index: 5000;
   margin-top: 0.25rem;
   max-height: 16rem;
   width: 100%;
@@ -67,9 +67,14 @@ body {
   border-radius: 0.5rem;
   border: 1px solid var(--line);
   background: var(--surface);
-  box-shadow: 0 10px 30px rgba(28, 25, 20, 0.12);
+  box-shadow: 0 10px 30px rgba(28, 25, 20, 0.18);
   list-style: none;
   padding: 0.25rem;
+}
+
+/* Anchored menus set position/top/left/width/max-height inline (fixed). */
+.dropdown-anchored {
+  margin-top: 0;
 }
 
 .dropdown-tall {

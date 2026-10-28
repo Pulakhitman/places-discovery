@@ -75,13 +75,10 @@ export function ResultsPanel({
 
   if (state.status === "error" || state.status === "rate_limited") {
     return (
-      <section
-        aria-labelledby="results-heading"
-        className="flex min-h-0 flex-1 flex-col gap-2"
-      >
+      <section aria-labelledby="results-heading" className="flex flex-col gap-2">
         <h2
           id="results-heading"
-          className="shrink-0 text-sm font-semibold tracking-wide text-[var(--ink)]"
+          className="text-sm font-semibold tracking-wide text-[var(--ink)]"
         >
           Results
         </h2>
@@ -122,11 +119,8 @@ export function ResultsPanel({
       : `${meta.radiusKm ?? "?"} km radius`;
 
   return (
-    <section
-      aria-labelledby="results-heading"
-      className="flex h-full min-h-0 flex-1 flex-col gap-2"
-    >
-      <header className="shrink-0 space-y-1">
+    <section aria-labelledby="results-heading" className="flex flex-col gap-3">
+      <header className="space-y-1">
         <h2
           id="results-heading"
           className="text-sm font-semibold tracking-wide text-[var(--ink)]"
@@ -140,7 +134,7 @@ export function ResultsPanel({
       </header>
 
       {state.status === "empty" ? (
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
+        <div className="space-y-2">
           <div
             className="rounded-lg border border-dashed border-[var(--line)] bg-[var(--surface-2)]/60 px-3 py-3"
             role="status"
@@ -159,13 +153,10 @@ export function ResultsPanel({
           </p>
         </div>
       ) : (
-        <div
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"
-          data-results-scroll=""
-        >
+        <>
           {state.places.length === 0 && filtersActive ? (
             <p
-              className="mb-2 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted)]"
+              className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted)]"
               role="status"
             >
               No places match the current filters.{" "}
@@ -304,7 +295,7 @@ export function ResultsPanel({
               );
             })}
           </ul>
-          <div className="mt-3 space-y-2 border-t border-[var(--line)] pb-1 pt-2">
+          <div className="space-y-2 border-t border-[var(--line)] pt-2">
             <CoverageSummary coverage={state.coverage} />
             <p className="text-[11px] leading-relaxed text-[var(--muted)]">
               Coverage varies by area — empty fields mean missing OSM tags, not a
@@ -315,7 +306,7 @@ export function ResultsPanel({
               Data: {meta.attribution} ({meta.license})
             </p>
           </div>
-        </div>
+        </>
       )}
     </section>
   );

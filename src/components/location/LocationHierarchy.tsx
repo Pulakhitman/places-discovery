@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useAnchoredMenu } from "@/components/location/use-anchored-menu";
 import { filterCountries, getAllCountries } from "@/lib/location/countries";
 import {
   bboxFromCenter,
@@ -260,6 +261,11 @@ export function LocationHierarchy({ selection, onChange }: Props) {
         )}
       </nav>
 
+      <form
+        className="flex flex-col gap-4"
+        autoComplete="off"
+        onSubmit={(e) => e.preventDefault()}
+      >
       <CountryField
         countries={countries}
         filtered={filteredCountries}
@@ -399,9 +405,22 @@ export function LocationHierarchy({ selection, onChange }: Props) {
           onClear={() => commit(skipLevel(selectionRef.current, "city"))}
         />
       )}
+      </form>
     </section>
   );
 }
+
+/** Combobox filter attrs — avoid browser address/country autofill. */
+const FILTER_INPUT_PROPS = {
+  autoComplete: "off" as const,
+  autoCorrect: "off" as const,
+  autoCapitalize: "off" as const,
+  spellCheck: false,
+  /** Chrome often ignores autoComplete=off on country-like fields. */
+  "data-1p-ignore": true,
+  "data-lpignore": "true",
+  "data-form-type": "other",
+};
 
 function CountryField({
   countries,
@@ -428,11 +447,15 @@ function CountryField({
   onSelect: (c: CountryOption) => void;
   onClear: () => void;
 }) {
+  const inputId = "pd-area-country-filter";
+  const { anchorRef, menuStyle } = useAnchoredMenu(open);
+  const [readOnlyUntilFocus, setReadOnlyUntilFocus] = useState(true);
+
   return (
-    <div className="relative">
+    <div ref={anchorRef} className="relative">
       <div className="mb-1 flex items-center justify-between gap-2">
         <label
-          htmlFor="country-search"
+          htmlFor={inputId}
           className="text-sm font-medium text-[var(--ink)]"
         >
           Country
@@ -443,17 +466,23 @@ function CountryField({
       </div>
       <div className="flex gap-2">
         <input
-          id="country-search"
-          type="search"
+          id={inputId}
+          name="pd-area-country-filter"
+          type="text"
+          inputMode="search"
           role="combobox"
           aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"
-          autoComplete="off"
+          {...FILTER_INPUT_PROPS}
+          readOnly={readOnlyUntilFocus}
           placeholder="Click to browse all, or type to filter…"
           value={open ? query : (selected?.name ?? query)}
           onChange={(e) => onQuery(e.target.value)}
-          onFocus={onOpen}
+          onFocus={() => {
+            setReadOnlyUntilFocus(false);
+            onOpen();
+          }}
           onBlur={() => {
             window.setTimeout(onClose, 150);
           }}
@@ -471,19 +500,21 @@ function CountryField({
               onClose();
               return;
             }
+            setReadOnlyUntilFocus(false);
             onOpen();
-            document.getElementById("country-search")?.focus();
+            document.getElementById(inputId)?.focus();
           }}
         >
           {open ? "Hide" : "List"}
         </button>
       </div>
-      {open && (
+      {open && menuStyle ? (
         <ul
           id={listId}
           role="listbox"
           aria-label="All countries"
-          className="dropdown dropdown-tall"
+          className="dropdown dropdown-tall dropdown-anchored"
+          style={menuStyle}
         >
           <li className="sticky top-0 z-[1] border-b border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted)]">
             {query.trim()
@@ -518,7 +549,7 @@ function CountryField({
             ))
           )}
         </ul>
-      )}
+      ) : null}
       {selected && (
         <button
           type="button"
@@ -563,7 +594,10 @@ function StaticDivisionField({
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [readOnlyUntilFocus, setReadOnlyUntilFocus] = useState(true);
   const listId = useId();
+  const inputId = `pd-area-${id}-filter`;
+  const { anchorRef, menuStyle } = useAnchoredMenu(open && !disabled && !selected);
   const filtered = useMemo(
     () => filterDivisions(query, options),
     [query, options],
@@ -571,10 +605,10 @@ function StaticDivisionField({
   const countLabel = optionsLabel ?? `${options.length} options`;
 
   return (
-    <div className="relative">
+    <div ref={anchorRef} className="relative">
       <div className="mb-1 flex items-center justify-between gap-2">
         <label
-          htmlFor={`level-${id}`}
+          htmlFor={inputId}
           className="text-sm font-medium text-[var(--ink)]"
         >
           {label}
@@ -612,13 +646,16 @@ function StaticDivisionField({
         <>
           <div className="flex gap-2">
             <input
-              id={`level-${id}`}
-              type="search"
+              id={inputId}
+              name={inputId}
+              type="text"
+              inputMode="search"
               role="combobox"
               aria-expanded={open}
               aria-controls={listId}
               aria-autocomplete="list"
-              autoComplete="off"
+              {...FILTER_INPUT_PROPS}
+              readOnly={readOnlyUntilFocus}
               disabled={disabled}
               placeholder={
                 disabled
@@ -634,6 +671,7 @@ function StaticDivisionField({
               }}
               onFocus={() => {
                 if (!disabled) {
+                  setReadOnlyUntilFocus(false);
                   setQuery("");
                   setOpen(true);
                 }
@@ -656,9 +694,10 @@ function StaticDivisionField({
                   setOpen(false);
                   return;
                 }
+                setReadOnlyUntilFocus(false);
                 setQuery("");
                 setOpen(true);
-                document.getElementById(`level-${id}`)?.focus();
+                document.getElementById(inputId)?.focus();
               }}
             >
               {open ? "Hide" : "List"}
@@ -671,12 +710,13 @@ function StaticDivisionField({
             </p>
           ) : null}
 
-          {open && !disabled && (
+          {open && !disabled && menuStyle ? (
             <ul
               id={listId}
               role="listbox"
               aria-label={`${label} options`}
-              className="dropdown dropdown-tall"
+              className="dropdown dropdown-tall dropdown-anchored"
+              style={menuStyle}
             >
               <li className="sticky top-0 z-[1] border-b border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted)]">
                 {options.length === 0
@@ -713,7 +753,7 @@ function StaticDivisionField({
                 ))
               )}
             </ul>
-          )}
+          ) : null}
         </>
       )}
     </div>
@@ -748,8 +788,12 @@ function NominatimDivisionField({
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [readOnlyUntilFocus, setReadOnlyUntilFocus] = useState(true);
   const [state, setState] = useState<HierarchySearchState>({ status: "idle" });
   const listId = useId();
+  const inputId = `pd-area-${id}-filter`;
+  const menuOpen = open && state.status === "results" && !selected;
+  const { anchorRef, menuStyle } = useAnchoredMenu(menuOpen);
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<number | null>(null);
 
@@ -842,10 +886,10 @@ function NominatimDivisionField({
   );
 
   return (
-    <div className="relative">
+    <div ref={anchorRef} className="relative">
       <div className="mb-1 flex items-center justify-between gap-2">
         <label
-          htmlFor={`level-${id}`}
+          htmlFor={inputId}
           className="text-sm font-medium text-[var(--ink)]"
         >
           {label}
@@ -880,13 +924,16 @@ function NominatimDivisionField({
       ) : (
         <>
           <input
-            id={`level-${id}`}
-            type="search"
+            id={inputId}
+            name={inputId}
+            type="text"
+            inputMode="search"
             role="combobox"
-            aria-expanded={open && state.status === "results"}
+            aria-expanded={menuOpen}
             aria-controls={listId}
             aria-autocomplete="list"
-            autoComplete="off"
+            {...FILTER_INPUT_PROPS}
+            readOnly={readOnlyUntilFocus}
             disabled={disabled}
             placeholder={
               disabled
@@ -896,6 +943,7 @@ function NominatimDivisionField({
                   : "Search county…"
             }
             value={query}
+            onFocus={() => setReadOnlyUntilFocus(false)}
             onChange={(e) => {
               const value = e.target.value;
               setQuery(value);
@@ -929,32 +977,34 @@ function NominatimDivisionField({
               {state.message}
             </p>
           )}
-          {open && state.status === "results" && (
+          {menuOpen && menuStyle ? (
             <ul
               id={listId}
               role="listbox"
               aria-label={`${label} matches`}
-              className="dropdown dropdown-tall"
+              className="dropdown dropdown-tall dropdown-anchored"
+              style={menuStyle}
             >
-              {state.results.map((result) => (
-                <li key={result.id} role="option" aria-selected={false}>
-                  <button
-                    type="button"
-                    className="dropdown-item text-left"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      onSelect(result);
-                      setQuery("");
-                      setOpen(false);
-                      setState({ status: "idle" });
-                    }}
-                  >
-                    {result.displayName}
-                  </button>
-                </li>
-              ))}
+              {state.status === "results" &&
+                state.results.map((result) => (
+                  <li key={result.id} role="option" aria-selected={false}>
+                    <button
+                      type="button"
+                      className="dropdown-item text-left"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        onSelect(result);
+                        setQuery("");
+                        setOpen(false);
+                        setState({ status: "idle" });
+                      }}
+                    >
+                      {result.displayName}
+                    </button>
+                  </li>
+                ))}
             </ul>
-          )}
+          ) : null}
         </>
       )}
     </div>

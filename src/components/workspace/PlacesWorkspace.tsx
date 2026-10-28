@@ -453,12 +453,14 @@ export function PlacesWorkspace() {
       </div>
 
       {/*
-        Sidebar height chain: parents use min-h-0 + overflow-hidden so this
-        column gets a bounded height. Only the results scroll region uses
-        overflow-y-auto — never overflow-hidden on the list itself.
+        Single scrollport for the left column (Area + search + results).
+        Hierarchy dropdowns use position:fixed so they are not clipped here.
       */}
-      <aside className="order-2 flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-sm lg:order-1 lg:w-[22rem] lg:flex-none xl:w-[24rem]">
-        <div className="max-h-[42%] shrink-0 space-y-3 overflow-y-auto overscroll-contain border-b border-[var(--line)] p-4">
+      <aside
+        data-sidebar-scroll=""
+        className="order-2 flex min-h-0 w-full flex-1 flex-col overflow-y-auto overscroll-contain rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-sm lg:order-1 lg:w-[22rem] lg:flex-none xl:w-[24rem]"
+      >
+        <div className="space-y-4 p-4">
           <LocationHierarchy
             selection={selection}
             onChange={handleSelectionChange}
@@ -547,9 +549,9 @@ export function PlacesWorkspace() {
               </button>
             ) : null}
           </p>
-        </div>
 
-        <div className="flex min-h-0 flex-1 flex-col p-4 pt-3">
+          <hr className="border-[var(--line)]" />
+
           <ResultsPanel
             state={resultsState}
             selectedId={selectedPlaceId}

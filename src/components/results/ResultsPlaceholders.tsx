@@ -27,11 +27,8 @@ export function ResultsPlaceholders({
   const label = categoryLabel(category);
 
   return (
-    <section
-      aria-labelledby="results-heading"
-      className="flex h-full min-h-0 flex-1 flex-col gap-2"
-    >
-      <div className="shrink-0">
+    <section aria-labelledby="results-heading" className="flex flex-col gap-3">
+      <div>
         <h2
           id="results-heading"
           className="flex items-center gap-2 text-sm font-semibold tracking-wide text-[var(--ink)]"
@@ -53,7 +50,7 @@ export function ResultsPlaceholders({
 
       {!hasCenter && mode === "idle" && (
         <p
-          className="shrink-0 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]"
+          className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]"
           role="status"
         >
           Set a map center (pick a country/area or tap the map), then search to
@@ -62,7 +59,7 @@ export function ResultsPlaceholders({
       )}
 
       {hasCenter && mode === "idle" && (
-        <p className="shrink-0 text-xs text-[var(--muted)]" role="status">
+        <p className="text-xs text-[var(--muted)]" role="status">
           Press{" "}
           <span className="font-medium text-[var(--ink)]">Search nearby</span>{" "}
           to load real {label.toLowerCase()} within {radiusKm} km.
@@ -70,8 +67,7 @@ export function ResultsPlaceholders({
       )}
 
       <ul
-        className="min-h-0 flex-1 list-none space-y-2 overflow-y-auto overscroll-contain pr-1 pb-1"
-        data-results-scroll=""
+        className="list-none space-y-2"
         aria-hidden={mode === "loading" ? undefined : true}
         aria-label={
           mode === "loading"
