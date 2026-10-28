@@ -1,6 +1,10 @@
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { PlacesWorkspace } from "@/components/workspace/PlacesWorkspace";
+import { isAccessKeyConfigured } from "@/lib/auth/access-key";
 
 export default function HomePage() {
+  const showLogout = isAccessKeyConfigured();
+
   return (
     <div className="relative flex min-h-screen flex-col">
       <a href="#workspace" className="skip-link">
@@ -22,6 +26,7 @@ export default function HomePage() {
             Google Places details via official APIs only — no scraping.
           </p>
         </div>
+        {showLogout ? <LogoutButton /> : null}
       </header>
 
       <main
