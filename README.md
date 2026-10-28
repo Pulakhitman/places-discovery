@@ -65,6 +65,26 @@ Compose uses `expose: ["3000"]` for Traefik (no host ports unless you use the lo
 
 Optional access gate: set `ACCESS_KEY` (unlock page + httpOnly cookie; health stays public).
 
+### VPS redeploy (behind Traefik)
+
+```bash
+cd /path/to/places-discovery
+git pull
+docker compose build
+docker compose up -d
+```
+
+Confirm `.env` has `ACCESS_KEY`, `DOMAIN=places.dhakafareast.tech`, and matching `TRAEFIK_*`. Health should stay public: `curl -fsS https://$DOMAIN/api/health`.
+
+### Traefik / network checks
+
+- Container is on the external Traefik network: `docker network inspect traefik | grep places-discovery`
+- Router Host rule matches the public hostname (`DOMAIN`)
+- Entrypoint is TLS (`websecure` / `TRAEFIK_ENTRYPOINT`) and cert resolver is set
+- Traefik forwards `X-Forwarded-Proto=https` (default when TLS terminates at Traefik)
+- No app-level force-HTTPS redirect needed; Traefik already redirects HTTP→HTTPS
+- If you see `/` ↔ `/unlock` loops after enabling `ACCESS_KEY`, rebuild so `/unlock` is not served from a build-time prerender that redirected home when `ACCESS_KEY` was empty
+
 ## Status
 
 - **Step 1** — Scaffold, location hierarchy (full dropdowns), single Leaflet map. See [`STEP1_SUMMARY.md`](./STEP1_SUMMARY.md).

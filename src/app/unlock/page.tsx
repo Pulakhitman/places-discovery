@@ -1,11 +1,17 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { UnlockForm } from "@/components/auth/UnlockForm";
 import { isAccessKeyConfigured } from "@/lib/auth/access-key";
 
-export const instant = false;
+/**
+ * Must run after `connection()` so ACCESS_KEY is read at request time.
+ * Build/prerender has no ACCESS_KEY; a static redirect("/") here loops with
+ * middleware (/ → /unlock → /) when the gate is enabled in production.
+ */
+export default async function UnlockPage() {
+  await connection();
 
-export default function UnlockPage() {
   if (!isAccessKeyConfigured()) {
     redirect("/");
   }

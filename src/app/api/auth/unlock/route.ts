@@ -40,8 +40,11 @@ export async function POST(request: Request) {
   }
 
   const digest = await hashAccessKey(key);
+  // Traefik terminates TLS; request.url is often http://inside the container.
+  const forwardedProto = request.headers.get("x-forwarded-proto");
   const secure =
     process.env.NODE_ENV === "production" ||
+    forwardedProto === "https" ||
     request.url.startsWith("https://");
 
   const response = NextResponse.json({ ok: true });
