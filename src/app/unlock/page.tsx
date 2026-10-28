@@ -5,11 +5,16 @@ import { UnlockForm } from "@/components/auth/UnlockForm";
 import { isAccessKeyConfigured } from "@/lib/auth/access-key";
 
 /**
- * Must run after `connection()` so ACCESS_KEY is read at request time.
- * Build/prerender has no ACCESS_KEY; a static redirect("/") here loops with
- * middleware (/ → /unlock → /) when the gate is enabled in production.
+ * Opt out of instant static shell. Runtime ACCESS_KEY / connection() live
+ * inside Suspense so `next build` does not fail on uncached data during
+ * prerender (Next 16.4 + cacheComponents).
+ *
+ * Without request-time evaluation, Docker build (no ACCESS_KEY) prerenders
+ * redirect("/") and production loops: middleware / → /unlock → /.
  */
-export default async function UnlockPage() {
+export const instant = false;
+
+async function UnlockPageContent() {
   await connection();
 
   if (!isAccessKeyConfigured()) {
@@ -43,5 +48,19 @@ export default async function UnlockPage() {
         </Suspense>
       </main>
     </div>
+  );
+}
+
+export default function UnlockPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto flex min-h-screen w-full max-w-md items-center justify-center px-4">
+          <p className="text-sm text-[var(--muted)]">Loading…</p>
+        </main>
+      }
+    >
+      <UnlockPageContent />
+    </Suspense>
   );
 }
