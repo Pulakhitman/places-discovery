@@ -27,13 +27,11 @@ describe("mapGooglePlaceDetails", () => {
           relativePublishTimeDescription: "2 weeks ago",
         },
       ],
-      photos: [{ name: "places/ChIJtest/photos/abc", widthPx: 800 }],
     });
 
     expect(details?.name).toBe("Dolores Park");
     expect(details?.rating).toBe(4.6);
     expect(details?.reviews[0]?.text).toBe("Great park");
-    expect(details?.photos[0]?.mediaUrl).toContain("/api/places/google/photo");
     expect(details?.attribution).toBe("Google Maps");
   });
 

@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   activeFilterCount,
   DEFAULT_RESULT_FILTERS,
+  defaultFiltersForCategory,
   filterPlaces,
 } from "./filters";
 import type { OsmPlace } from "./types";
 
 function place(partial: Partial<OsmPlace> & Pick<OsmPlace, "id" | "name">): OsmPlace {
   return {
+    source: "osm",
     osmType: "node",
     osmId: 1,
     isUnnamed: false,
@@ -86,5 +88,17 @@ describe("filterPlaces", () => {
         maxDistanceM: 500,
       }),
     ).toBe(3);
+  });
+});
+
+describe("defaultFiltersForCategory", () => {
+  it("starts business categories named-only", () => {
+    expect(defaultFiltersForCategory("restaurants").namedOnly).toBe(true);
+    expect(defaultFiltersForCategory("shops").namedOnly).toBe(true);
+  });
+
+  it("leaves parks and playgrounds showing unnamed features", () => {
+    expect(defaultFiltersForCategory("parks").namedOnly).toBe(false);
+    expect(defaultFiltersForCategory("playgrounds").namedOnly).toBe(false);
   });
 });

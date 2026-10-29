@@ -50,7 +50,8 @@ export function MapWorkspaceLoader(props: Props) {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/maps/browser-config");
+        const res = await fetch("/api/maps/browser-config", { cache: "no-store" });
+        if (!res.ok) throw new Error("Browser map config unavailable");
         const data = (await res.json()) as BrowserConfig;
         if (!cancelled) {
           setBrowser({
@@ -72,7 +73,8 @@ export function MapWorkspaceLoader(props: Props) {
   const center = props.center ?? { lat: 20, lng: 0 };
   const zoom = props.zoom ?? (props.center ? 12 : 2);
   const showGoogle =
-    basemap === "google" && Boolean(browser?.enabled && browser.apiKey && props.center);
+    basemap === "google" && Boolean(browser?.enabled && browser.apiKey);
+  const googleNeedsCenter = !props.center;
 
   return (
     <div className="relative h-full min-h-[240px] w-full">
@@ -106,7 +108,7 @@ export function MapWorkspaceLoader(props: Props) {
       ) : null}
 
       {showGoogle && browser?.apiKey ? (
-        <div className="map-shell h-full min-h-[280px] overflow-hidden rounded-xl border border-[var(--line)]">
+        <div className="map-shell relative h-full min-h-[280px] overflow-hidden rounded-xl border border-[var(--line)]">
           <GoogleBasemap
             apiKey={browser.apiKey}
             center={center}
@@ -115,11 +117,17 @@ export function MapWorkspaceLoader(props: Props) {
             searchMode={props.searchMode === "area" ? "area" : "radius"}
             boundingBox={props.boundingBox}
             places={props.places ?? []}
+            placeholders={props.placeholders ?? []}
             selectedPlaceId={props.selectedPlaceId ?? null}
             onCenterChange={props.onCenterChange}
             onSelectPlace={props.onSelectPlace}
             onOpenDetails={props.onOpenDetails}
           />
+          {googleNeedsCenter ? (
+            <p className="pointer-events-none absolute inset-x-3 top-14 z-[1200] rounded-lg border border-[var(--line)] bg-[color-mix(in_oklab,var(--surface)_96%,transparent)] px-3 py-2 text-xs text-[var(--muted)] shadow-sm backdrop-blur-sm">
+              Tap the map to set a search pin, then choose a radius or area.
+            </p>
+          ) : null}
         </div>
       ) : (
         <MapWorkspace {...props} />

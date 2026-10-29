@@ -20,6 +20,25 @@ const CATEGORY_FILTERS: Record<
   schools: ['["amenity"="school"]'],
 };
 
+/**
+ * Categories where an unnamed OSM feature is almost always noise.
+ * Parks/playgrounds are excluded on purpose — plenty of real unnamed green
+ * spaces exist, and hiding them would drop legitimate results.
+ */
+const CATEGORY_REQUIRES_NAME: ReadonlySet<PlaceCategoryId> = new Set([
+  "shops",
+  "supermarkets",
+  "cafes",
+  "restaurants",
+  "libraries",
+  "schools",
+]);
+
+/** True when Overpass queries for this category demand an OSM `name` tag. */
+export function categoryRequiresName(category: PlaceCategoryId): boolean {
+  return category !== "custom" && CATEGORY_REQUIRES_NAME.has(category);
+}
+
 export function isPlaceCategoryId(value: string): value is PlaceCategoryId {
   return PLACE_CATEGORIES.some((c) => c.id === value);
 }
@@ -82,9 +101,17 @@ export function buildOverpassQuery(params: BuildOverpassQueryParams): string {
       : `(around:${Math.round(params.radiusM)},${params.lat},${params.lng})`;
 
   const filters = categoryFilters(params.category, params.customKeyword);
+  const requireName = categoryRequiresName(params.category);
 
   // `nwr` matches nodes, ways, and relations in one clause (lighter than 3×).
-  const clauses = filters.map((f) => `nwr${f}${spatial};`).join("\n  ");
+  // `["noname"!="yes"]` drops features OSM explicitly marks as nameless, and
+  // business/institution categories additionally require a real `name` tag.
+  const clauses = filters
+    .map((f) => {
+      const nameGuard = requireName ? '["name"]' : "";
+      return `nwr${f}${nameGuard}["noname"!="yes"]${spatial};`;
+    })
+    .join("\n  ");
 
   return `
 [out:json][timeout:60];

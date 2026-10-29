@@ -6,6 +6,7 @@ function place(
   partial: Partial<OsmPlace> & Pick<OsmPlace, "id" | "name" | "distanceM">,
 ): OsmPlace {
   return {
+    source: "osm",
     osmType: "node",
     osmId: 1,
     isUnnamed: false,

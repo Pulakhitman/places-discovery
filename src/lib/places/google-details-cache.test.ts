@@ -19,7 +19,6 @@ describe("google details cache", () => {
         text: "Do not cache this summary",
         disclosureText: "Summarized with Gemini",
       },
-      photos: [],
       attribution: "Google Maps",
     };
     setCachedGoogleDetails(details);

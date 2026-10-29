@@ -17,7 +17,7 @@ const ROWS: { key: keyof OsmPlace | "named"; label: string }[] = [
   { key: "name", label: "Name" },
   { key: "categoryLabel", label: "Category" },
   { key: "distanceM", label: "Distance" },
-  { key: "named", label: "Named in OSM" },
+  { key: "named", label: "Named" },
   { key: "address", label: "Address" },
   { key: "hours", label: "Hours" },
   { key: "website", label: "Website" },
@@ -109,8 +109,8 @@ export function CompareDrawer({ places, open, onClose, onRemove }: Props) {
               Compare places
             </h2>
             <p className="text-xs text-[var(--muted)]">
-              OpenStreetMap fields only · differing rows highlighted · Esc to
-              close
+              Visible result fields (Google rows are display-only) · differing rows
+              highlighted · Esc to close
             </p>
           </div>
           <button

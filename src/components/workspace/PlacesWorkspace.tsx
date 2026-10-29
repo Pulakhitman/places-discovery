@@ -24,6 +24,7 @@ import {
 import type { LocationSelection, MapCenter } from "@/lib/location/types";
 import {
   DEFAULT_RESULT_FILTERS,
+  defaultFiltersForCategory,
   filterPlaces,
   hasActiveFilters,
   type ResultFilters,
@@ -44,6 +45,7 @@ import type {
   FieldCoverage,
   OsmPlace,
   PlacesSearchSuccess,
+  SearchSource,
 } from "@/lib/places/types";
 import {
   isBBoxWithinSearchLimit,
@@ -79,6 +81,7 @@ export function PlacesWorkspace() {
     null,
   );
   const [filters, setFilters] = useState<ResultFilters>(DEFAULT_RESULT_FILTERS);
+  const [searchSource, setSearchSource] = useState<SearchSource>("osm");
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
   const [coordsCopied, setCoordsCopied] = useState(false);
@@ -315,7 +318,7 @@ export function PlacesWorkspace() {
     setDetailOpen(false);
     setCompareIds([]);
     setCompareOpen(false);
-    setFilters(DEFAULT_RESULT_FILTERS);
+    setFilters(defaultFiltersForCategory(category));
 
     try {
       const body =
@@ -326,6 +329,7 @@ export function PlacesWorkspace() {
               lat: mapCenter?.lat,
               lng: mapCenter?.lng,
               category,
+              source: searchSource,
               customKeyword:
                 category === "custom" ? customKeyword.trim() : undefined,
             }
@@ -335,6 +339,7 @@ export function PlacesWorkspace() {
               lng: mapCenter!.lng,
               radiusKm,
               category,
+              source: searchSource,
               customKeyword:
                 category === "custom" ? customKeyword.trim() : undefined,
             };
@@ -417,6 +422,7 @@ export function PlacesWorkspace() {
     category,
     customKeyword,
     searchMode,
+    searchSource,
     selectedAreaBBox,
     areaTooLarge,
   ]);
@@ -475,6 +481,9 @@ export function PlacesWorkspace() {
             hasAreaBBox={Boolean(selectedAreaBBox)}
             areaTooLarge={areaTooLarge}
             loading={searchState.status === "loading"}
+            source={searchSource}
+            googleAvailable={googleConfigured === true}
+            onSourceChange={setSearchSource}
             onCategoryChange={setCategory}
             onSearchModeChange={setSearchMode}
             onRadiusChange={setRadiusKm}
@@ -482,7 +491,7 @@ export function PlacesWorkspace() {
             onSearch={() => void runSearch()}
             disabled={searchMode === "radius" ? !mapCenter : false}
           />
-          {googleConfigured !== null && (
+          {googleConfigured !== null && !googleConfigured && (
             <p
               className={`rounded-md border px-3 py-2 text-xs ${
                 googleConfigured
@@ -492,23 +501,30 @@ export function PlacesWorkspace() {
               role="status"
             >
               {googleConfigured
-                ? "Google Places details: on — tap a result for hours, ratings, and reviews."
-                : "Google Places details: off — set GOOGLE_MAPS_API_KEY in .env to enable."}
+                ? "Google Places ready · results and on-demand details available."
+                : "Google Places unavailable · set GOOGLE_MAPS_API_KEY to enable discovery and details."}
             </p>
           )}
-          <GoogleUsagePanel refreshKey={usageRefresh} />
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <button
-              type="button"
-              className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]"
-              onClick={copyShareLink}
-            >
-              {linkCopied ? "Link copied" : "Copy share link"}
-            </button>
-            <span className="text-[var(--muted)]">
-              Deep-links lat, lng, radius, category, and mode in the URL.
-            </span>
-          </div>
+          <details className="group rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/40 px-3 py-2 text-xs">
+            <summary className="cursor-pointer font-semibold text-[var(--ink)] marker:text-[var(--accent)]">
+              Usage &amp; sharing
+            </summary>
+            <div className="mt-3 space-y-3">
+              <GoogleUsagePanel refreshKey={usageRefresh} />
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]"
+                  onClick={copyShareLink}
+                >
+                  {linkCopied ? "Link copied" : "Copy share link"}
+                </button>
+                <span className="text-[var(--muted)]">
+                  Deep-links lat, lng, radius, category, and mode in the URL.
+                </span>
+              </div>
+            </div>
+          </details>
           {showTools ? (
             <>
               <hr className="border-[var(--line)]" />
@@ -565,7 +581,7 @@ export function PlacesWorkspace() {
             onToggleCompare={showTools ? handleToggleCompare : undefined}
             compareLimit={MAX_COMPARE}
             filtersActive={filtersActive}
-            onClearFilters={() => setFilters(DEFAULT_RESULT_FILTERS)}
+            onClearFilters={() => setFilters(defaultFiltersForCategory(category))}
           />
         </div>
       </aside>

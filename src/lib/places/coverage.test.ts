@@ -4,6 +4,7 @@ import type { OsmPlace } from "./types";
 
 function place(partial: Partial<OsmPlace> & Pick<OsmPlace, "id">): OsmPlace {
   return {
+    source: "osm",
     osmType: "node",
     osmId: 1,
     name: partial.name ?? "Place",

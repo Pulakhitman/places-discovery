@@ -5,12 +5,30 @@ import type {
   SearchRadiusKm,
 } from "@/lib/search/categories";
 
-export type PlaceSource = "osm";
+export type PlaceSource = "osm" | "google";
+
+/** Which lane a search should run. */
+export type SearchSource = "osm" | "google" | "both";
+
+export const SEARCH_SOURCES: readonly { id: SearchSource; label: string }[] = [
+  { id: "osm", label: "OpenStreetMap" },
+  { id: "google", label: "Google" },
+  { id: "both", label: "Both (merged)" },
+];
+
+export function isSearchSource(value: unknown): value is SearchSource {
+  return value === "osm" || value === "google" || value === "both";
+}
 
 export type OsmPlace = {
   id: string;
-  osmType: "node" | "way" | "relation";
-  osmId: number;
+  /** Which provider produced this row. */
+  source: PlaceSource;
+  /** OSM identity — present only when `source` is "osm". */
+  osmType?: "node" | "way" | "relation";
+  osmId?: number;
+  /** Google place id — present only when `source` is "google". */
+  googlePlaceId?: string;
   name: string;
   /** True when OSM had no name/brand/operator and we synthesized a label. */
   isUnnamed: boolean;
@@ -24,7 +42,9 @@ export type OsmPlace = {
   website?: string;
   phone?: string;
   tags: Record<string, string>;
-  sources: { osm: true };
+  sources: { osm?: true; google?: true };
+  /** In Both mode, a separately matched original OSM record. Never copy Google fields into it. */
+  matchedOsm?: Omit<OsmPlace, "matchedOsm">;
 };
 
 export type FieldCoverage = {
@@ -55,7 +75,8 @@ export type PlacesSearchSuccess = {
     bbox: NominatimBBox | null;
     center: { lat: number; lng: number };
     searchedAt: string;
-    source: "overpass";
+    /** Which provider produced the rows. */
+    source: "overpass" | "google" | "both";
     attribution: string;
     license: string;
   };

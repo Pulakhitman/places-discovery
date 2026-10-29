@@ -1,7 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type {
+  GoogleAiSummary,
   GoogleLookupResponse,
   GoogleMatchInfo,
   GooglePlaceDetails,
@@ -26,6 +35,87 @@ import {
 } from "@/lib/places/review-skim";
 import type { OsmPlace } from "@/lib/places/types";
 import { CategoryIcon } from "@/lib/search/category-icons";
+import { BESTTIME_SECTION_ID, BestTimePanel, bestTimeBlocker } from "./BestTimePanel";
+import {
+  FOURSQUARE_SECTION_ID,
+  FoursquarePanel,
+  foursquareBlocker,
+} from "./FoursquarePanel";
+
+/** An OSM-only record: safe to send to Foursquare / BestTime. */
+export type OsmSnapshot = OsmPlace & {
+  source: "osm";
+  osmType: "node" | "way" | "relation";
+  osmId: number;
+};
+
+const OSM_ROW_ID = /^osm:(node|way|relation)\/(\d+)$/;
+
+/**
+ * The OSM record third-party enrichment may use: the row itself for OSM rows,
+ * or the original OSM snapshot (`matchedOsm`) for merged Google rows. Null for
+ * Google-only rows or any record carrying a Google marker. Rebuilt field by
+ * field so no Google-derived value can ride along.
+ */
+export function osmEnrichmentSnapshot(place: OsmPlace): OsmSnapshot | null {
+  const candidate: unknown =
+    place.source === "osm"
+      ? place
+      : (place as OsmPlace & { matchedOsm?: unknown }).matchedOsm;
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+  const osm = candidate as Partial<OsmPlace>;
+  const idMatch = typeof osm.id === "string" ? OSM_ROW_ID.exec(osm.id) : null;
+  if (
+    !idMatch ||
+    osm.source !== "osm" ||
+    osm.osmType !== idMatch[1] ||
+    osm.osmId !== Number(idMatch[2]) ||
+    osm.googlePlaceId !== undefined ||
+    osm.sources?.osm !== true ||
+    osm.sources.google !== undefined ||
+    typeof osm.name !== "string" ||
+    typeof osm.isUnnamed !== "boolean" ||
+    typeof osm.lat !== "number" ||
+    typeof osm.lng !== "number" ||
+    !Number.isFinite(osm.lat) ||
+    !Number.isFinite(osm.lng)
+  ) {
+    return null;
+  }
+  const text = (value: unknown) =>
+    typeof value === "string" ? value : undefined;
+  const tags: Record<string, string> = {};
+  if (osm.tags && typeof osm.tags === "object") {
+    for (const [key, value] of Object.entries(osm.tags)) {
+      if (typeof value === "string") {
+        tags[key] = value;
+      }
+    }
+  }
+  return {
+    id: osm.id!,
+    source: "osm",
+    osmType: osm.osmType!,
+    osmId: osm.osmId!,
+    name: osm.name,
+    isUnnamed: osm.isUnnamed,
+    // Search metadata computed by this app, not provider content.
+    categoryId: osm.categoryId ?? place.categoryId,
+    categoryLabel: text(osm.categoryLabel) ?? place.categoryLabel,
+    lat: osm.lat,
+    lng: osm.lng,
+    distanceM:
+      typeof osm.distanceM === "number" ? osm.distanceM : place.distanceM,
+    address: text(osm.address),
+    hours: text(osm.hours),
+    website: text(osm.website),
+    phone: text(osm.phone),
+    tags,
+    sources: { osm: true },
+  };
+}
 
 type GoogleState =
   | { status: "loading" }
@@ -211,6 +301,19 @@ function PlaceDetailDrawerInner({
   }, [place.id, place.name, place.lat, place.lng, retryNonce]);
 
   const osmWebsiteHref = normalizeHttpUrl(place.website);
+  const osmIdentity =
+    place.source === "osm" &&
+    typeof place.osmType === "string" &&
+    typeof place.osmId === "number"
+      ? { type: place.osmType, id: place.osmId }
+      : null;
+  const isGoogleRow = place.source === "google";
+  // Foursquare / BestTime only ever receive this OSM-only record.
+  const osmSnapshot = osmEnrichmentSnapshot(place);
+  const matchedOsm = isGoogleRow ? osmSnapshot : null;
+  const foursquareBlocked = foursquareBlocker(osmSnapshot);
+  const bestTimeBlocked = bestTimeBlocker(osmSnapshot);
+  const rowEmpty = isGoogleRow ? GOOGLE_EMPTY : undefined;
 
   return (
     <div
@@ -241,7 +344,8 @@ function PlaceDetailDrawerInner({
               {place.name}
             </h2>
             <p className="text-xs text-[var(--muted)]">
-              {place.categoryLabel} · {formatDistance(place.distanceM)} · OSM
+              {place.categoryLabel} · {formatDistance(place.distanceM)} ·{" "}
+              {isGoogleRow ? (matchedOsm ? "Google + matched OSM" : "Google only") : "OSM"}
               {place.isUnnamed ? " · unnamed" : ""}
             </p>
           </div>
@@ -261,41 +365,135 @@ function PlaceDetailDrawerInner({
               id="osm-section"
               className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]"
             >
-              OpenStreetMap
+              {place.source === "google" ? "Google" : "OpenStreetMap"}
             </h3>
             <dl className="mt-2 space-y-2 text-sm">
-              <Row label="Address" value={place.address} />
-              <Row label="Hours" value={place.hours} />
+              <Row label="Address" value={place.address} empty={rowEmpty} />
+              <Row label="Hours" value={place.hours} empty={rowEmpty} />
               <Row
                 label="Website"
                 value={place.website}
                 href={osmWebsiteHref}
+                empty={rowEmpty}
               />
-              <Row label="Phone" value={place.phone} />
+              <Row label="Phone" value={place.phone} empty={rowEmpty} />
               <Row
                 label="Coordinates"
                 value={formatLatLng(place.lat, place.lng)}
               />
             </dl>
             <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--muted)]">
-              <span>© OpenStreetMap contributors · ODbL</span>
-              <a
-                href={osmBrowseUrl(place.osmType, place.osmId)}
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+              <span>
+                {osmIdentity
+                  ? "© OpenStreetMap contributors · ODbL"
+                  : "Google Maps · display-only, never exported"}
+              </span>
+              {osmIdentity ? (
+                <>
+                  <a
+                    href={osmBrowseUrl(osmIdentity.type, osmIdentity.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                  >
+                    View on openstreetmap.org
+                  </a>
+                  <CopyButton label="Copy name" value={place.name} />
+                  <CopyButton
+                    label="Copy coords"
+                    value={formatLatLng(place.lat, place.lng, 6)}
+                  />
+                  <CopyButton
+                    label="Copy OSM id"
+                    value={`${osmIdentity.type}/${osmIdentity.id}`}
+                  />
+                </>
+              ) : (
+                <>
+                  <CopyButton label="Copy name" value={place.name} />
+                  <CopyButton
+                    label="Copy coords"
+                    value={formatLatLng(place.lat, place.lng, 6)}
+                  />
+                </>
+              )}
+            </p>
+          </section>
+
+          {matchedOsm ? (
+            <section
+              aria-labelledby="matched-osm-section"
+              className="rounded-lg border border-[var(--line)] px-3 py-2"
+            >
+              <h3
+                id="matched-osm-section"
+                className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]"
               >
-                View on openstreetmap.org
-              </a>
-              <CopyButton label="Copy name" value={place.name} />
-              <CopyButton
-                label="Copy coords"
-                value={formatLatLng(place.lat, place.lng, 6)}
-              />
-              <CopyButton
-                label="Copy OSM id"
-                value={`${place.osmType}/${place.osmId}`}
-              />
+                Matched OpenStreetMap record
+              </h3>
+              <p className="mt-1 text-[11px] text-[var(--muted)]">
+                Original OSM data for this Google result — the only data
+                Foursquare and BestTime receive.
+              </p>
+              <dl className="mt-2 space-y-2 text-sm">
+                <Row label="OSM name" value={matchedOsm.name} />
+                <Row label="OSM address" value={matchedOsm.address} />
+                <Row
+                  label="OSM coordinates"
+                  value={formatLatLng(matchedOsm.lat, matchedOsm.lng)}
+                />
+              </dl>
+              <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--muted)]">
+                <span>© OpenStreetMap contributors · ODbL</span>
+                <a
+                  href={osmBrowseUrl(matchedOsm.osmType, matchedOsm.osmId)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                >
+                  View on openstreetmap.org
+                </a>
+              </p>
+            </section>
+          ) : null}
+
+          <section
+            aria-labelledby="extras-section"
+            className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/70 px-3 py-2"
+          >
+            <h3
+              id="extras-section"
+              className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]"
+            >
+              Busy hours &amp; more data
+            </h3>
+            <ul className="mt-1.5 space-y-1 text-xs text-[var(--muted)]">
+              <li>
+                <JumpButton target={BESTTIME_SECTION_ID}>
+                  Busy hours (BestTime)
+                </JumpButton>
+                {" — "}
+                {bestTimeBlocked
+                  ? `unavailable: ${bestTimeBlocked.reason}`
+                  : "on request · paid"}
+              </li>
+              <li>
+                <JumpButton target={FOURSQUARE_SECTION_ID}>
+                  Foursquare
+                </JumpButton>
+                {" — "}
+                {foursquareBlocked
+                  ? `unavailable: ${foursquareBlocked.reason}`
+                  : "on request · Premium is a separate paid call"}
+              </li>
+            </ul>
+            <p className="mt-1.5 text-[11px] text-[var(--muted)]">
+              {!osmSnapshot
+                ? "Google-only result: Google data is never sent to Foursquare or BestTime. Search with OpenStreetMap or Both (merged), then open this place’s OSM row. "
+                : matchedOsm
+                  ? "Uses the matched OSM record above — never this Google result’s details. "
+                  : ""}
+              Google’s official Places API has no busy hours.
             </p>
           </section>
 
@@ -357,14 +555,61 @@ function PlaceDetailDrawerInner({
             )}
           </section>
 
+          <FoursquarePanel place={osmSnapshot} matched={Boolean(matchedOsm)} />
+          <BestTimePanel place={osmSnapshot} matched={Boolean(matchedOsm)} />
+
           <p className="text-[11px] leading-relaxed text-[var(--muted)]">
             Google content is display-only with required attribution and is
-            never included in exports. Official Places API only — no scraping.
-            Press Esc to close.
+            never included in exports or sent to Foursquare or BestTime.
+            Official Places API only — no scraping. Press Esc to close.
           </p>
         </div>
       </aside>
     </div>
+  );
+}
+
+function AiSummaryBlock({
+  title,
+  summary,
+}: {
+  title: string;
+  summary: GoogleAiSummary;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/80 px-3 py-2">
+      <p className="text-sm font-medium text-[var(--ink)]">{title}</p>
+      <p className="mt-1 text-sm text-[var(--ink)]">{summary.text}</p>
+      <p className="mt-2 text-[11px] text-[var(--muted)]" translate="no">
+        {summary.disclosureText ? `${summary.disclosureText} · ` : ""}
+        Generated by Google · shown verbatim · not written by this app
+      </p>
+    </div>
+  );
+}
+
+const GOOGLE_EMPTY = "Not provided by Google";
+
+/** Scrolls to and focuses a drawer section (no URL hash change). */
+function JumpButton({
+  target,
+  children,
+}: {
+  target: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+      onClick={() => {
+        const section = document.getElementById(target);
+        section?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+        section?.focus({ preventScroll: true });
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -373,12 +618,15 @@ function Row({
   value,
   link,
   href,
+  empty = "Not tagged in OSM",
 }: {
   label: string;
   value?: string;
   link?: boolean;
   /** Prefer over `value` when linking (normalized URL). */
   href?: string;
+  /** Shown when `value` is missing; names the source that lacks it. */
+  empty?: string;
 }) {
   const linkHref = href ?? (link ? normalizeHttpUrl(value) : undefined);
   return (
@@ -399,7 +647,7 @@ function Row({
             value
           )
         ) : (
-          "Not tagged in OSM"
+          empty
         )}
       </dd>
     </div>
@@ -530,6 +778,17 @@ function GoogleDetailsBlock({
     () => skimGoogleReviews(details.reviews, { minStars, sort }),
     [details.reviews, minStars, sort],
   );
+  const attributes = details.attributes;
+  const hoursLines =
+    attributes?.currentHoursWeekday?.length
+      ? attributes.currentHoursWeekday
+      : details.hoursWeekday;
+  const statusNotice =
+    attributes?.businessStatus === "CLOSED_PERMANENTLY"
+      ? "Permanently closed"
+      : attributes?.businessStatus === "CLOSED_TEMPORARILY"
+        ? "Temporarily closed"
+        : null;
 
   return (
     <div className="mt-2 space-y-3">
@@ -563,7 +822,7 @@ function GoogleDetailsBlock({
           <div className="mt-2 space-y-2">
             <p>
               This Google place may not be the same as the OSM result. Confirm
-              before loading photos and reviews.
+              before loading Google details and reviews.
             </p>
             <button
               type="button"
@@ -578,7 +837,7 @@ function GoogleDetailsBlock({
 
       {!showRich ? (
         <p className="text-sm text-[var(--muted)]">
-          Confirm the match above to show Google hours, photos, and reviews.
+          Confirm the match above to show Google hours and reviews.
         </p>
       ) : (
         <>
@@ -610,36 +869,165 @@ function GoogleDetailsBlock({
           <GoogleIdsBlock details={details} />
 
           <dl className="space-y-2 text-sm">
-            <Row label="Address" value={details.address} />
-            <Row label="Phone" value={details.phone} />
-            <Row label="Website" value={details.website} link />
+            <Row label="Address" value={details.address} empty={GOOGLE_EMPTY} />
+            <Row label="Phone" value={details.phone} empty={GOOGLE_EMPTY} />
+            <Row
+              label="Website"
+              value={details.website}
+              link
+              empty={GOOGLE_EMPTY}
+            />
+            {attributes?.priceLevelLabel ? (
+              <Row label="Price level" value={attributes.priceLevelLabel} />
+            ) : null}
+            {attributes?.priceRangeLabel ? (
+              <Row label="Typical spend" value={attributes.priceRangeLabel} />
+            ) : null}
           </dl>
 
-          {details.hoursWeekday && details.hoursWeekday.length > 0 ? (
+          {statusNotice ? (
+            <p
+              className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-2 py-1 text-xs font-medium text-[var(--danger)]"
+              role="status"
+            >
+              {statusNotice} according to Google
+            </p>
+          ) : null}
+
+          {attributes?.editorialSummary ? (
+            <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/80 px-3 py-2">
+              <p className="text-sm font-medium text-[var(--ink)]">
+                About this place
+              </p>
+              <p className="mt-1 text-sm text-[var(--ink)]">
+                {attributes.editorialSummary}
+              </p>
+              <p className="mt-2 text-[11px] text-[var(--muted)]" translate="no">
+                Google editorial summary · shown verbatim
+              </p>
+            </div>
+          ) : null}
+
+          {attributes?.generativeSummary ? (
+            <AiSummaryBlock
+              title="AI overview"
+              summary={attributes.generativeSummary}
+            />
+          ) : null}
+
+          {attributes?.neighborhoodSummary ? (
+            <AiSummaryBlock
+              title="Neighborhood"
+              summary={attributes.neighborhoodSummary}
+            />
+          ) : null}
+
+          {attributes?.evCharging ? (
+            <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/80 px-3 py-2">
+              <p className="text-sm font-medium text-[var(--ink)]">
+                EV charging
+                {typeof attributes.evCharging.connectorCount === "number" ? (
+                  <span className="ml-1 font-normal text-[var(--muted)]">
+                    ({attributes.evCharging.connectorCount} connectors)
+                  </span>
+                ) : null}
+              </p>
+              {attributes.evCharging.connectors.length > 0 ? (
+                <ul className="mt-1 space-y-0.5 text-xs text-[var(--muted)]">
+                  {attributes.evCharging.connectors.map((connector) => (
+                    <li key={`${connector.type}-${connector.maxKw ?? "na"}`}>
+                      {connector.type}
+                      {connector.count ? ` × ${connector.count}` : ""}
+                      {typeof connector.maxKw === "number"
+                        ? ` · ${connector.maxKw} kW`
+                        : ""}
+                      {typeof connector.available === "number"
+                        ? ` · ${connector.available} available`
+                        : ""}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {attributes.evChargeAmenitySummary ? (
+                <p className="mt-1.5 text-xs text-[var(--muted)]">
+                  {attributes.evChargeAmenitySummary.text}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {attributes?.fuelPrices && attributes.fuelPrices.length > 0 ? (
             <div>
-              <p className="text-sm font-medium text-[var(--ink)]">Hours</p>
+              <p className="text-sm font-medium text-[var(--ink)]">
+                Fuel prices
+              </p>
               <ul className="mt-1 space-y-0.5 text-xs text-[var(--muted)]">
-                {details.hoursWeekday.map((line) => (
-                  <li key={line}>{line}</li>
+                {attributes.fuelPrices.map((entry) => (
+                  <li key={entry.label}>
+                    {entry.label}: {entry.price}
+                  </li>
                 ))}
+              </ul>
+              <p className="mt-1 text-[11px] text-[var(--muted)]">
+                Prices as reported by Google — may be outdated.
+              </p>
+            </div>
+          ) : null}
+
+          {attributes &&
+          [
+            attributes.serves,
+            attributes.amenities,
+            attributes.accessibility,
+            attributes.payment,
+            attributes.parking,
+          ].some((group) => group && group.length > 0) ? (
+            <div>
+              <p className="text-sm font-medium text-[var(--ink)]">
+                Features
+              </p>
+              <ul className="mt-1 flex flex-wrap gap-1.5">
+                {(
+                  [
+                    attributes.serves,
+                    attributes.amenities,
+                    attributes.accessibility,
+                    attributes.payment,
+                    attributes.parking,
+                  ] as Array<string[] | undefined>
+                )
+                  .flatMap((group) => group ?? [])
+                  .map((label) => (
+                    <li
+                      key={label}
+                      className="rounded-full border border-[var(--line)] px-2 py-0.5 text-[11px] text-[var(--muted)]"
+                    >
+                      {label}
+                    </li>
+                  ))}
               </ul>
             </div>
           ) : null}
 
-          {details.photos.length > 0 ? (
+          {hoursLines && hoursLines.length > 0 ? (
             <div>
-              <p className="text-sm font-medium text-[var(--ink)]">Photos</p>
-              <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {details.photos.map((photo) => (
-                  <li key={photo.name}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={photo.mediaUrl}
-                      alt=""
-                      className="aspect-[4/3] w-full rounded-md object-cover ring-1 ring-[var(--line)]"
-                      loading="lazy"
-                    />
-                  </li>
+              <div className="flex flex-wrap items-baseline gap-2">
+                <p className="text-sm font-medium text-[var(--ink)]">Hours</p>
+                {typeof attributes?.openNow === "boolean" ? (
+                  <span
+                    className={
+                      attributes.openNow
+                        ? "rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-[11px] font-medium text-[var(--accent)]"
+                        : "rounded-full border border-[var(--line)] px-2 py-0.5 text-[11px] text-[var(--muted)]"
+                    }
+                  >
+                    {attributes.openNow ? "Open now" : "Closed now"}
+                  </span>
+                ) : null}
+              </div>
+              <ul className="mt-1 space-y-0.5 text-xs text-[var(--muted)]">
+                {hoursLines.map((line) => (
+                  <li key={line}>{line}</li>
                 ))}
               </ul>
             </div>

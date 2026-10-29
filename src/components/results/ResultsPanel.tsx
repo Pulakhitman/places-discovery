@@ -129,7 +129,12 @@ export function ResultsPanel({
           {count === 1 ? "" : "s"}
         </h2>
         <p className="text-xs text-[var(--muted)]">
-          Searched {formatTime(meta.searchedAt)}
+          {meta.source === "both"
+            ? "OpenStreetMap + Google Places"
+            : meta.source === "google"
+              ? "Google Places"
+              : "OpenStreetMap"}
+          {" · "}Searched {formatTime(meta.searchedAt)}
         </p>
       </header>
 
@@ -140,7 +145,7 @@ export function ResultsPanel({
             role="status"
           >
             <p className="text-sm font-medium text-[var(--ink)]">
-              No OpenStreetMap places found
+              No {meta.source === "both" ? "OSM or Google" : meta.source === "google" ? "Google" : "OpenStreetMap"} places found
             </p>
             <p className="mt-1 text-sm text-[var(--muted)]">
               {meta.mode === "area"
@@ -171,6 +176,13 @@ export function ResultsPanel({
               ) : null}
             </p>
           ) : null}
+          {meta.source === "google" ? (
+            <p className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">
+              Google-only search has no OSM record to use for Foursquare or BestTime.
+              Choose Both to show matched OSM records when available; forecasts
+              and Premium details still require separate paid actions.
+            </p>
+          ) : null}
           <ul className="list-none space-y-2" aria-label="Place results">
             {state.places.map((place) => {
               const active = place.id === selectedId;
@@ -181,10 +193,10 @@ export function ResultsPanel({
               return (
                 <li key={place.id}>
                   <article
-                    className={`rounded-lg border transition ${
+                    className={`overflow-hidden rounded-xl border transition-colors ${
                       active
                         ? "border-[var(--accent)] bg-[var(--surface-2)] shadow-sm"
-                        : "border-[var(--line)] bg-[var(--surface)]"
+                        : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--accent)]/50"
                     }`}
                   >
                     <button
@@ -214,12 +226,19 @@ export function ResultsPanel({
                       </div>
                       <p className="mt-1 pl-10 text-xs text-[var(--muted)]">
                         {place.categoryLabel}
-                        {place.isUnnamed ? " · unnamed in OSM" : ""} · OSM
+                        {place.isUnnamed ? " · unnamed in OSM" : ""} ·{" "}
+                        {place.source === "google"
+                          ? place.matchedOsm
+                            ? "Google · OSM match available for enrichment"
+                            : "Google only · no OSM match"
+                          : "OSM"}
                       </p>
                       <p className="mt-1 pl-10 text-sm text-[var(--ink)]">
                         {place.address ?? (
                           <span className="text-[var(--muted)]">
-                            Address not tagged in OSM
+                            {place.source === "google"
+                              ? "No address from Google"
+                              : "Address not tagged in OSM"}
                           </span>
                         )}
                       </p>
@@ -228,7 +247,7 @@ export function ResultsPanel({
                         <FieldRow
                           label="Hours"
                           value={place.hours}
-                          empty="Not tagged"
+                          empty={place.source === "google" ? "Not provided" : "Not tagged"}
                         />
                         <div>
                           <dt className="inline font-medium text-[var(--ink)]">
@@ -250,14 +269,14 @@ export function ResultsPanel({
                                 place.website
                               )
                             ) : (
-                              "Not tagged"
+                              place.source === "google" ? "Not provided" : "Not tagged"
                             )}
                           </dd>
                         </div>
                         <FieldRow
                           label="Phone"
                           value={place.phone}
-                          empty="Not tagged"
+                          empty={place.source === "google" ? "Not provided" : "Not tagged"}
                         />
                         <div>
                           <dt className="inline font-medium text-[var(--ink)]">
@@ -298,9 +317,10 @@ export function ResultsPanel({
           <div className="space-y-2 border-t border-[var(--line)] pt-2">
             <CoverageSummary coverage={state.coverage} />
             <p className="text-[11px] leading-relaxed text-[var(--muted)]">
-              Coverage varies by area — empty fields mean missing OSM tags, not a
-              broken search. Tap a result for Google hours, ratings, and reviews
-              when configured. Exports never include Google data.
+              Coverage varies by area. Open a result for Google details and,
+              when an OSM match is available, on-demand Foursquare and BestTime.
+              Hourly busy times require a paid BestTime forecast for a precisely
+              addressed OSM venue. Exports contain only original OSM fields.
             </p>
             <p className="text-[11px] leading-relaxed text-[var(--muted)]">
               Data: {meta.attribution} ({meta.license})
@@ -340,7 +360,7 @@ function FieldChips({ place }: { place: OsmPlace }) {
   return (
     <ul
       className="mt-2 flex flex-wrap gap-1 pl-10"
-      aria-label={`OSM fields: ${present} of ${chips.length} tagged`}
+      aria-label={`${place.source === "google" ? "Google" : "OSM"} fields: ${present} of ${chips.length} present`}
     >
       {chips.map((chip) => (
         <li
@@ -350,11 +370,11 @@ function FieldChips({ place }: { place: OsmPlace }) {
               ? "bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] text-[var(--accent)]"
               : "bg-[var(--surface-2)] text-[var(--muted)]"
           }`}
-          title={chip.ok ? `${chip.label} tagged in OSM` : `${chip.label} not tagged`}
+          title={chip.ok ? `${chip.label} present in ${place.source === "google" ? "Google" : "OSM"}` : `${chip.label} not provided by ${place.source === "google" ? "Google" : "OSM"}`}
         >
           {chip.label}
           <span className="sr-only">
-            {chip.ok ? " tagged" : " not tagged"}
+            {chip.ok ? " present" : " not provided"}
           </span>
         </li>
       ))}

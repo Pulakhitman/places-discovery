@@ -1,6 +1,8 @@
 import { connection, NextResponse } from "next/server";
 import { isAccessKeyConfigured } from "@/lib/auth/access-key";
 import { isGooglePlacesConfigured } from "@/lib/providers/google-places";
+import { foursquareConfigured } from "@/lib/providers/foursquare";
+import { bestTimeConfigured, bestTimeKeyStatus } from "@/lib/providers/besttime";
 
 /**
  * GET /api/health
@@ -14,6 +16,9 @@ export async function GET() {
     service: "places-discovery",
     ts: new Date().toISOString(),
     googlePlacesConfigured: isGooglePlacesConfigured(),
+    foursquareConfigured: foursquareConfigured(),
+    bestTimeConfigured: bestTimeConfigured(),
+    bestTimeKeyStatus: bestTimeKeyStatus(),
     accessKeyConfigured: isAccessKeyConfigured(),
   });
 }

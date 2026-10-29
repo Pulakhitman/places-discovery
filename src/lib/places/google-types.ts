@@ -24,13 +24,62 @@ export type GoogleReviewSummary = {
   disclosureText?: string;
 };
 
-export type GooglePlacePhoto = {
-  /** Resource name e.g. places/ChIJ…/photos/… */
-  name: string;
-  widthPx?: number;
-  heightPx?: number;
-  /** Proxied app URL for display (never hotlink without attribution). */
-  mediaUrl: string;
+/** Any AI-generated Places summary block (place / neighborhood / EVCS). */
+export type GoogleAiSummary = {
+  text: string;
+  disclosureText?: string;
+};
+
+export type GoogleEvCharging = {
+  connectorCount?: number;
+  connectors: Array<{
+    /** Connector type label, e.g. “CCS”, “Tesla”. */
+    type: string;
+    maxKw?: number;
+    count?: number;
+    available?: number;
+  }>;
+};
+
+export type GoogleFuelPrice = {
+  /** Fuel type label, e.g. “Regular unleaded”. */
+  label: string;
+  price: string;
+  updatedAt?: string;
+};
+
+/**
+ * Official Places “Enterprise + Atmosphere” attributes.
+ * Display-only — same billing SKU as `reviews`, so they are free to request
+ * alongside a Details call that already asks for reviews/reviewSummary.
+ */
+export type GooglePlaceAttributes = {
+  /** “Free” / “$” … “$$$$” from `priceLevel`. */
+  priceLevelLabel?: string;
+  /** e.g. “$10.00–$20.00” from `priceRange` when Google returns it. */
+  priceRangeLabel?: string;
+  businessStatus?: "OPERATIONAL" | "CLOSED_TEMPORARILY" | "CLOSED_PERMANENTLY";
+  /** Live open/closed from `currentOpeningHours.openNow`. */
+  openNow?: boolean;
+  /** Hours including holiday/special-day overrides. */
+  currentHoursWeekday?: string[];
+  /** Google editorial blurb — show verbatim, never paraphrase. */
+  editorialSummary?: string;
+  /** AI place overview (Gemini). */
+  generativeSummary?: GoogleAiSummary;
+  /** AI neighborhood overview. */
+  neighborhoodSummary?: GoogleAiSummary;
+  /** AI EV-charging amenity overview. */
+  evChargeAmenitySummary?: GoogleAiSummary;
+  evCharging?: GoogleEvCharging;
+  fuelPrices?: GoogleFuelPrice[];
+  accessibility?: string[];
+  payment?: string[];
+  parking?: string[];
+  /** e.g. “Outdoor seating”, “Dog friendly”. */
+  amenities?: string[];
+  /** e.g. “Breakfast”, “Cocktails”. */
+  serves?: string[];
 };
 
 export type GooglePlaceDetails = {
@@ -40,6 +89,8 @@ export type GooglePlaceDetails = {
   lng: number;
   address?: string;
   hoursWeekday?: string[];
+  /** Richer official attributes (optional — older cached shells omit it). */
+  attributes?: GooglePlaceAttributes;
   phone?: string;
   website?: string;
   googleMapsUri?: string;
@@ -53,7 +104,6 @@ export type GooglePlaceDetails = {
   reviews: GooglePlaceReview[];
   /** Official AI review summary from Place Details (not app-written). */
   reviewSummary?: GoogleReviewSummary;
-  photos: GooglePlacePhoto[];
   primaryType?: string;
   /** Prefer “Google Maps” for review blocks. */
   attribution: string;

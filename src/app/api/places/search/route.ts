@@ -1,10 +1,23 @@
 import { NextResponse } from "next/server";
 import { computeOsmCoverage } from "@/lib/places/coverage";
-import type {
-  PlacesSearchErrorBody,
-  PlacesSearchSuccess,
+import {
+  googleDetailsToPlace,
+  mergePlaceSources,
+} from "@/lib/places/google-to-place";
+import { haversineMeters } from "@/lib/places/google-match";
+import {
+  isSearchSource,
+  type OsmPlace,
+  type PlacesSearchErrorBody,
+  type PlacesSearchSuccess,
+  type SearchSource,
 } from "@/lib/places/types";
 import { OverpassError, searchOverpass } from "@/lib/providers/overpass";
+import {
+  GooglePlacesError,
+  isGooglePlacesConfigured,
+  searchGoogleNearby,
+} from "@/lib/providers/google-places";
 import {
   bboxCenter,
   bboxSpanKm,
@@ -22,14 +35,27 @@ import {
   isSearchRadiusKm,
 } from "@/lib/search/overpass-queries";
 
-const ATTRIBUTION = "© OpenStreetMap contributors";
-const LICENSE = "ODbL";
+const OSM_ATTRIBUTION = "© OpenStreetMap contributors";
+const OSM_LICENSE = "ODbL";
+const GOOGLE_ATTRIBUTION = "Google Maps";
+const GOOGLE_LICENSE = "Google Maps Platform Terms of Service";
+
+/** Google Nearby Search is circle-only; cover an area bbox with a circle. */
+function bboxRadiusM(bbox: NominatimBBox): number {
+  const [south, north, west, east] = bbox;
+  const midLat = (south + north) / 2;
+  const halfLat = haversineMeters(south, west, north, west) / 2;
+  const halfLng = haversineMeters(midLat, west, midLat, east) / 2;
+  return Math.min(Math.hypot(halfLat, halfLng), 50_000);
+}
 
 /**
  * POST /api/places/search
  * Body:
- * - radius mode (default): { mode?: "radius", lat, lng, radiusKm, category, customKeyword? }
- * - area mode: { mode: "area", bbox: [south,north,west,east], category, customKeyword?, lat?, lng? }
+ * - radius mode (default): { mode?: "radius", lat, lng, radiusKm, category, customKeyword?, source? }
+ * - area mode: { mode: "area", bbox: [south,north,west,east], category, customKeyword?, lat?, lng?, source? }
+ *
+ * `source` is "osm" (default), "google", or "both" (merged, Google wins ties).
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -45,6 +71,16 @@ export async function POST(request: Request) {
     return errorResponse('mode must be "radius" or "area".', 400, false);
   }
   const mode: SearchMode = modeRaw;
+
+  const sourceRaw = payload.source ?? "osm";
+  if (!isSearchSource(sourceRaw)) {
+    return errorResponse(
+      'source must be "osm", "google", or "both".',
+      400,
+      false,
+    );
+  }
+  const source: SearchSource = sourceRaw;
 
   const categoryRaw = String(payload.category ?? "");
   const customKeyword =
@@ -63,12 +99,21 @@ export async function POST(request: Request) {
     );
   }
 
+  if (source !== "osm" && !isGooglePlacesConfigured()) {
+    return errorResponse(
+      "Google search needs GOOGLE_MAPS_API_KEY. Add it to .env or search OpenStreetMap only.",
+      503,
+      false,
+    );
+  }
+
   const searchedAt = new Date().toISOString();
 
   let lat: number;
   let lng: number;
   let radiusKm: SearchRadiusKm | null = null;
   let bbox: NominatimBBox | null = null;
+  let radiusM: number;
 
   if (mode === "area") {
     if (!isNominatimBBox(payload.bbox)) {
@@ -96,6 +141,7 @@ export async function POST(request: Request) {
       Number.isFinite(Number(payload.lng)) && Number(payload.lng) >= -180
         ? Number(payload.lng)
         : center.lng;
+    radiusM = bboxRadiusM(bbox);
   } else {
     lat = Number(payload.lat);
     lng = Number(payload.lng);
@@ -114,26 +160,60 @@ export async function POST(request: Request) {
       );
     }
     radiusKm = radiusKmRaw;
+    radiusM = radiusKmRaw * 1000;
   }
 
+  const runOsm = source === "osm" || source === "both";
+  const runGoogle = source === "google" || source === "both";
+
   try {
+    let osmPlaces: OsmPlace[] = [];
+    let googlePlaces: OsmPlace[] = [];
+
+    if (runOsm) {
+      osmPlaces =
+        mode === "area" && bbox
+          ? await searchOverpass({
+              mode: "area",
+              bbox,
+              lat,
+              lng,
+              category: categoryRaw,
+              customKeyword,
+            })
+          : await searchOverpass({
+              lat,
+              lng,
+              radiusM,
+              category: categoryRaw,
+              customKeyword,
+            });
+    }
+
+    if (runGoogle) {
+      const details = await searchGoogleNearby({
+        lat,
+        lng,
+        radiusM,
+        category: categoryRaw,
+        customKeyword,
+        maxResultCount: 20,
+      });
+      googlePlaces = details.map((d) =>
+        googleDetailsToPlace(d, {
+          center: { lat, lng },
+          categoryId: categoryRaw,
+          categoryLabel: categoryLabel(categoryRaw),
+        }),
+      );
+    }
+
     const places =
-      mode === "area" && bbox
-        ? await searchOverpass({
-            mode: "area",
-            bbox,
-            lat,
-            lng,
-            category: categoryRaw,
-            customKeyword,
-          })
-        : await searchOverpass({
-            lat,
-            lng,
-            radiusM: (radiusKm as SearchRadiusKm) * 1000,
-            category: categoryRaw,
-            customKeyword,
-          });
+      source === "both"
+        ? mergePlaceSources(googlePlaces, osmPlaces)
+        : source === "google"
+          ? googlePlaces.sort((a, b) => a.distanceM - b.distanceM)
+          : osmPlaces;
 
     const coverage = computeOsmCoverage(places);
     const response: PlacesSearchSuccess = {
@@ -148,9 +228,20 @@ export async function POST(request: Request) {
         bbox,
         center: { lat, lng },
         searchedAt,
-        source: "overpass",
-        attribution: ATTRIBUTION,
-        license: LICENSE,
+        source:
+          source === "both" ? "both" : source === "google" ? "google" : "overpass",
+        attribution:
+          source === "osm"
+            ? OSM_ATTRIBUTION
+            : source === "google"
+              ? GOOGLE_ATTRIBUTION
+              : `${OSM_ATTRIBUTION} · ${GOOGLE_ATTRIBUTION}`,
+        license:
+          source === "osm"
+            ? OSM_LICENSE
+            : source === "google"
+              ? GOOGLE_LICENSE
+              : `${OSM_LICENSE} + ${GOOGLE_LICENSE}`,
       },
     };
 
@@ -175,6 +266,18 @@ export async function POST(request: Request) {
 
       const status = err.kind === "timeout" ? 504 : 502;
       return errorResponse(err.message, status, true);
+    }
+
+    if (err instanceof GooglePlacesError) {
+      const status =
+        err.kind === "rate_limited"
+          ? 429
+          : err.kind === "timeout"
+            ? 504
+            : err.kind === "not_configured"
+              ? 503
+              : 502;
+      return errorResponse(err.message, status, err.kind !== "parse");
     }
 
     return errorResponse("Place search failed.", 502, true);

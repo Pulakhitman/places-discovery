@@ -4,6 +4,7 @@ import { useState } from "react";
 import { downloadTextFile } from "@/lib/places/download";
 import {
   placesToExport,
+  toOsmExportRows,
   type ExportFormat,
 } from "@/lib/places/export-osm";
 import type { OsmPlace } from "@/lib/places/types";
@@ -14,7 +15,10 @@ type Props = {
 };
 
 export function ExportBar({ places, label = "Export (OSM only)" }: Props) {
-  const disabled = places.length === 0;
+  const exportableCount = toOsmExportRows(places).length;
+  const matchedOsmCount = places.filter((p) => p.source === "google" && toOsmExportRows([p]).length > 0).length;
+  const googleOnlyCount = places.filter((p) => p.source === "google" && toOsmExportRows([p]).length === 0).length;
+  const disabled = exportableCount === 0;
   const [flash, setFlash] = useState<string | null>(null);
 
   function exportAs(format: ExportFormat) {
@@ -39,8 +43,10 @@ export function ExportBar({ places, label = "Export (OSM only)" }: Props) {
         {label}
       </h3>
       <p className="mt-1 text-[11px] text-[var(--muted)]">
-        {places.length} place{places.length === 1 ? "" : "s"} · Google
-        ratings/reviews are never included.
+        {exportableCount} OSM record{exportableCount === 1 ? "" : "s"} exportable
+        {matchedOsmCount > 0 ? ` (${matchedOsmCount} matched to displayed Google rows)` : ""}
+        {googleOnlyCount > 0 ? ` · ${googleOnlyCount} Google-only row${googleOnlyCount === 1 ? "" : "s"} excluded` : ""}
+        {" · Google, Foursquare and BestTime fields are never exported"}
       </p>
       <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Export formats">
         <ExportButton

@@ -189,6 +189,7 @@ export function parseOverpassElements(
 
     places.push({
       id,
+      source: "osm",
       osmType: el.type,
       osmId: el.id,
       name,

@@ -6,8 +6,7 @@
 export type GoogleUsageKind =
   | "text_search"
   | "nearby_search"
-  | "place_details"
-  | "place_photo";
+  | "place_details";
 
 type DayBucket = {
   day: string; // YYYY-MM-DD UTC
@@ -18,7 +17,6 @@ const EMPTY_COUNTS = (): Record<GoogleUsageKind, number> => ({
   text_search: 0,
   nearby_search: 0,
   place_details: 0,
-  place_photo: 0,
 });
 
 let bucket: DayBucket = {
@@ -42,7 +40,6 @@ const EST_USD: Record<GoogleUsageKind, number> = {
   text_search: 0.032,
   nearby_search: 0.032,
   place_details: 0.04,
-  place_photo: 0.007,
 };
 
 export function recordGoogleUsage(kind: GoogleUsageKind): void {

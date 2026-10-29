@@ -71,7 +71,6 @@ export function GoogleUsagePanel({ refreshKey = 0 }: Props) {
         <li>Text search: {data.counts.text_search}</li>
         <li>Nearby: {data.counts.nearby_search}</li>
         <li>Details: {data.counts.place_details}</li>
-        <li>Photos: {data.counts.place_photo}</li>
       </ul>
       <p className="mt-2 text-[11px] leading-relaxed">{data.message}</p>
       <p className="mt-1 text-[10px] leading-relaxed opacity-90">

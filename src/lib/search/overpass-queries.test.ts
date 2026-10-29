@@ -50,4 +50,37 @@ describe("overpass query helpers", () => {
     expect(q).toContain('nwr["amenity"="cafe"]');
     expect(q).not.toContain("around:");
   });
+
+  it("requires a name tag for business categories", () => {
+    const q = buildOverpassQuery({
+      lat: 0,
+      lng: 0,
+      radiusM: 1000,
+      category: "restaurants",
+    });
+    expect(q).toContain('nwr["amenity"="restaurant"]["name"]');
+    expect(q).toContain('["noname"!="yes"]');
+  });
+
+  it("keeps unnamed parks eligible", () => {
+    const q = buildOverpassQuery({
+      lat: 0,
+      lng: 0,
+      radiusM: 1000,
+      category: "parks",
+    });
+    expect(q).not.toContain('["name"]');
+    expect(q).toContain('["noname"!="yes"]');
+  });
+
+  it("never name-guards custom keyword searches", () => {
+    const q = buildOverpassQuery({
+      lat: 0,
+      lng: 0,
+      radiusM: 1000,
+      category: "custom",
+      customKeyword: "noodle",
+    });
+    expect(q).not.toContain('["name"]["noname"');
+  });
 });

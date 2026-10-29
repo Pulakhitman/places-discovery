@@ -34,7 +34,7 @@ export function getCachedGoogleDetails(
 
 /**
  * Cache Place Details metadata only — never retain review JSON / summary text
- * (Phase 3). A cache hit still avoids a full Atmosphere re-bill for hours/photos
+ * (Phase 3). A cache hit still avoids a full Atmosphere re-bill for hours
  * when the client already has reviews from the live response; lookup paths that
  * need reviews always use the live `getGooglePlaceDetails` payload.
  */

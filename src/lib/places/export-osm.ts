@@ -47,23 +47,39 @@ const CSV_COLUMNS: (keyof OsmExportRow)[] = [
   "osmId",
 ];
 
+/**
+ * Flat OSM-only row for exports. Matched Google rows contribute only their
+ * separate, original OSM snapshot; Google fields never enter export output.
+ */
 export function toOsmExportRows(places: OsmPlace[]): OsmExportRow[] {
-  return places.map((p) => ({
-    id: p.id,
-    name: p.name,
-    named: !p.isUnnamed,
-    category: p.categoryLabel,
-    categoryId: p.categoryId,
-    lat: p.lat,
-    lng: p.lng,
-    distanceM: p.distanceM,
-    address: p.address ?? "",
-    hours: p.hours ?? "",
-    website: p.website ?? "",
-    phone: p.phone ?? "",
-    osmType: p.osmType,
-    osmId: p.osmId,
-  }));
+  return places
+    .map((row) => row.source === "osm" ? row : row.source === "google" ? row.matchedOsm : undefined)
+    .filter(
+      (p): p is OsmPlace & { osmType: string; osmId: number } =>
+        p?.source === "osm" &&
+        p.sources.osm === true &&
+        p.sources.google !== true &&
+        p.googlePlaceId === undefined &&
+        typeof p.osmType === "string" &&
+        typeof p.osmId === "number" &&
+        p.id === `osm:${p.osmType}/${p.osmId}`,
+    )
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      named: !p.isUnnamed,
+      category: p.categoryLabel,
+      categoryId: p.categoryId,
+      lat: p.lat,
+      lng: p.lng,
+      distanceM: p.distanceM,
+      address: p.address ?? "",
+      hours: p.hours ?? "",
+      website: p.website ?? "",
+      phone: p.phone ?? "",
+      osmType: p.osmType,
+      osmId: p.osmId,
+    }));
 }
 
 export function buildExportMeta(placeCount: number): OsmExportMeta {
@@ -126,7 +142,9 @@ function htmlEscape(value: string): string {
 export function placesToHtml(places: OsmPlace[]): string {
   const rows = toOsmExportRows(places);
   const meta = buildExportMeta(rows.length);
-  const coverage = computeOsmCoverage(places);
+  const coverage = computeOsmCoverage(places.flatMap((row) =>
+    row.source === "osm" ? [row] : row.matchedOsm ? [row.matchedOsm] : [],
+  ));
   const headCells = CSV_COLUMNS.map(
     (col) => `<th>${htmlEscape(col)}</th>`,
   ).join("");

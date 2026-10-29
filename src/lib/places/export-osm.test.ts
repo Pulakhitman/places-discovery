@@ -10,6 +10,7 @@ import type { OsmPlace } from "./types";
 
 const sample: OsmPlace = {
   id: "osm:node/1",
+  source: "osm",
   osmType: "node",
   osmId: 1,
   name: "Dolores Park",
@@ -32,6 +33,55 @@ describe("OSM exports", () => {
     const rows = toOsmExportRows([sample]);
     expect(rows[0]?.name).toBe("Dolores Park");
     expect(JSON.stringify(rows)).not.toMatch(/google|rating|review/i);
+  });
+
+  it("drops Google-sourced rows from every export format", () => {
+    const googleRow: OsmPlace = {
+      id: "google:ChIJx",
+      source: "google",
+      googlePlaceId: "ChIJx",
+      name: "Google Only Cafe",
+      isUnnamed: false,
+      categoryId: "cafes",
+      categoryLabel: "Cafes",
+      lat: 1,
+      lng: 2,
+      distanceM: 40,
+      tags: {},
+      sources: { google: true },
+    };
+
+    expect(toOsmExportRows([sample, googleRow])).toHaveLength(1);
+    for (const body of [
+      placesToCsv([sample, googleRow]),
+      placesToJson([sample, googleRow]),
+      placesToHtml([sample, googleRow]),
+    ]) {
+      expect(body).not.toContain("Google Only Cafe");
+    }
+  });
+
+  it("exports only the original OSM snapshot from a merged Google result", () => {
+    const merged: OsmPlace = {
+      ...sample,
+      id: "google:ChIJsecret",
+      source: "google",
+      googlePlaceId: "ChIJsecret",
+      osmType: undefined,
+      osmId: undefined,
+      name: "Google-only name",
+      address: "Google-only address",
+      website: "https://google.test",
+      sources: { google: true, osm: true },
+      matchedOsm: sample,
+    };
+    const rows = toOsmExportRows([merged]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: sample.id, name: sample.name, address: sample.address });
+    for (const body of [placesToCsv([merged]), placesToJson([merged]), placesToHtml([merged])]) {
+      expect(body).not.toMatch(/Google-only name|Google-only address|google\.test|ChIJsecret/);
+    }
+    expect(toOsmExportRows([{ ...merged, matchedOsm: { ...sample, sources: { osm: true, google: true } } }])).toHaveLength(0);
   });
 
   it("builds CSV with attribution comments", () => {

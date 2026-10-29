@@ -1,4 +1,6 @@
 import type { OsmPlace } from "./types";
+import type { PlaceCategoryId } from "@/lib/search/categories";
+import { categoryRequiresName } from "@/lib/search/overpass-queries";
 
 export type ResultFilters = {
   namedOnly: boolean;
@@ -18,6 +20,20 @@ export const DEFAULT_RESULT_FILTERS: ResultFilters = {
   hasPhone: false,
   maxDistanceM: null,
 };
+
+/**
+ * Business/institution categories start with `namedOnly` on — an unnamed cafe
+ * or shop is almost always an OSM artifact. Parks and playgrounds keep unnamed
+ * features visible because untagged green space is still a real place.
+ */
+export function defaultFiltersForCategory(
+  category: PlaceCategoryId,
+): ResultFilters {
+  return {
+    ...DEFAULT_RESULT_FILTERS,
+    namedOnly: categoryRequiresName(category),
+  };
+}
 
 export function filterPlaces(
   places: OsmPlace[],

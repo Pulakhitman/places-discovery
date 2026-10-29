@@ -2,9 +2,12 @@ import { setCachedGoogleDetails } from "@/lib/places/google-details-cache";
 import { extractCidFromMapsUri } from "@/lib/places/google-ids";
 import { scoreGoogleMatch, type GoogleMatchInfo } from "@/lib/places/google-match";
 import { recordGoogleUsage } from "@/lib/places/google-usage";
+import {
+  mapGoogleAttributes,
+  type GoogleAttributesRaw,
+} from "@/lib/places/google-attributes";
 import type {
   GooglePlaceDetails,
-  GooglePlacePhoto,
   GooglePlaceReview,
   GoogleReviewSummary,
 } from "@/lib/places/google-types";
@@ -55,7 +58,7 @@ function timeoutMs(): number {
 
 type GoogleLatLng = { latitude: number; longitude: number };
 
-type GooglePlaceRaw = {
+type GooglePlaceRaw = GoogleAttributesRaw & {
   id?: string;
   name?: string;
   displayName?: { text?: string };
@@ -85,11 +88,6 @@ type GooglePlaceRaw = {
     visitDateMonth?: number;
     visitDateYear?: number;
   }>;
-  photos?: Array<{
-    name?: string;
-    widthPx?: number;
-    heightPx?: number;
-  }>;
   reviewSummary?: {
     text?: { text?: string; languageCode?: string };
     disclosureText?: { text?: string; languageCode?: string };
@@ -113,6 +111,11 @@ const MATCH_FIELD_MASK = [
   "places.location",
 ].join(",");
 
+/**
+ * Place Details mask. Already includes `reviews` + `reviewSummary`, which
+ * bills at Enterprise + Atmosphere — the top SKU. The extra attribute fields
+ * below are in that same SKU (or cheaper), so they add no per-call cost.
+ */
 const DETAILS_FIELD_MASK = [
   "id",
   "displayName",
@@ -128,7 +131,46 @@ const DETAILS_FIELD_MASK = [
   "regularOpeningHours",
   "reviews",
   "reviewSummary",
-  "photos",
+  // Rich attributes. All of these are at or below the Enterprise + Atmosphere
+  // tier that `reviews` already forces, so they add no per-call cost.
+  // (priceLevel / priceRange / currentOpeningHours are Enterprise;
+  // accessibilityOptions and businessStatus are Pro.)
+  "priceLevel",
+  "priceRange",
+  "businessStatus",
+  "currentOpeningHours",
+  "editorialSummary",
+  "generativeSummary",
+  "neighborhoodSummary",
+  "evChargeOptions",
+  "evChargeAmenitySummary",
+  "fuelOptions",
+  "accessibilityOptions",
+  "paymentOptions",
+  "parkingOptions",
+  "allowsDogs",
+  "curbsidePickup",
+  "delivery",
+  "dineIn",
+  "goodForChildren",
+  "goodForGroups",
+  "goodForWatchingSports",
+  "liveMusic",
+  "menuForChildren",
+  "outdoorSeating",
+  "reservable",
+  "restroom",
+  "takeout",
+  "servesBeer",
+  "servesBreakfast",
+  "servesBrunch",
+  "servesCocktails",
+  "servesCoffee",
+  "servesDessert",
+  "servesDinner",
+  "servesLunch",
+  "servesVegetarianFood",
+  "servesWine",
 ].join(",");
 
 const TEXT_FIELD_MASK = NEARBY_FIELD_MASK;
@@ -180,14 +222,6 @@ function throwForResponse(res: Response): never {
   );
 }
 
-function photoMediaUrl(photoName: string): string {
-  const params = new URLSearchParams({
-    name: photoName,
-    maxHeightPx: "400",
-  });
-  return `/api/places/google/photo?${params.toString()}`;
-}
-
 export function mapGooglePlaceDetails(
   raw: GooglePlaceRaw,
 ): GooglePlaceDetails | null {
@@ -216,18 +250,6 @@ export function mapGooglePlaceDetails(
       visitDateYear: r.visitDateYear,
     }));
 
-  const photos: GooglePlacePhoto[] = (raw.photos ?? [])
-    .filter((p): p is { name: string; widthPx?: number; heightPx?: number } =>
-      Boolean(p.name?.trim()),
-    )
-    .slice(0, 6)
-    .map((p) => ({
-      name: p.name!,
-      widthPx: p.widthPx,
-      heightPx: p.heightPx,
-      mediaUrl: photoMediaUrl(p.name!),
-    }));
-
   const summaryText = raw.reviewSummary?.text?.text?.trim();
   const reviewSummary: GoogleReviewSummary | undefined = summaryText
     ? {
@@ -244,6 +266,7 @@ export function mapGooglePlaceDetails(
     lng,
     address: raw.formattedAddress?.trim() || undefined,
     hoursWeekday: raw.regularOpeningHours?.weekdayDescriptions?.filter(Boolean),
+    attributes: mapGoogleAttributes(raw),
     phone:
       raw.nationalPhoneNumber?.trim() ||
       raw.internationalPhoneNumber?.trim() ||
@@ -256,7 +279,6 @@ export function mapGooglePlaceDetails(
     userRatingCount: raw.userRatingCount,
     reviews,
     reviewSummary,
-    photos,
     primaryType: raw.primaryType,
     attribution: ATTRIBUTION,
   };
@@ -449,72 +471,4 @@ export async function lookupGoogleForPlace(params: {
   // Text summary omits reviews/hours — fetch full details (cached by placeId).
   const details = (await getGooglePlaceDetails(best.placeId)) ?? best;
   return { details, match };
-}
-
-/**
- * Stream a place photo from Google (server-side; keeps API key off the client).
- */
-export async function fetchGooglePlacePhoto(params: {
-  photoName: string;
-  maxHeightPx?: number;
-}): Promise<{ body: ArrayBuffer; contentType: string }> {
-  const name = params.photoName.trim();
-  if (!name.startsWith("places/") || !name.includes("/photos/")) {
-    throw new GooglePlacesError("Invalid photo name.", "parse", 400);
-  }
-
-  const maxHeightPx = params.maxHeightPx ?? 400;
-  const url = `${PLACES_BASE}/${name}/media?maxHeightPx=${maxHeightPx}&skipHttpRedirect=true`;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs());
-  try {
-    const res = await fetch(url, {
-      headers: { "X-Goog-Api-Key": apiKey() },
-      signal: controller.signal,
-      cache: "no-store",
-      redirect: "follow",
-    });
-    if (!res.ok) {
-      throwForResponse(res);
-    }
-    recordGoogleUsage("place_photo");
-    const contentType = res.headers.get("content-type") || "image/jpeg";
-    // skipHttpRedirect=true returns JSON with photoUri — follow that.
-    if (contentType.includes("application/json")) {
-      const json = (await res.json()) as { photoUri?: string };
-      if (!json.photoUri) {
-        throw new GooglePlacesError("Photo URI missing.", "parse");
-      }
-      const img = await fetch(json.photoUri, {
-        signal: controller.signal,
-        cache: "no-store",
-      });
-      if (!img.ok) {
-        throw new GooglePlacesError(
-          `Photo download failed (${img.status}).`,
-          "http",
-          img.status,
-        );
-      }
-      return {
-        body: await img.arrayBuffer(),
-        contentType: img.headers.get("content-type") || "image/jpeg",
-      };
-    }
-    return { body: await res.arrayBuffer(), contentType };
-  } catch (err) {
-    if (err instanceof GooglePlacesError) {
-      throw err;
-    }
-    if (err instanceof Error && err.name === "AbortError") {
-      throw new GooglePlacesError("Google photo request timed out.", "timeout");
-    }
-    throw new GooglePlacesError(
-      err instanceof Error ? err.message : "Google photo request failed.",
-      "http",
-    );
-  } finally {
-    clearTimeout(timer);
-  }
 }
