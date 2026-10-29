@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Places Discovery — agent entry
 
-Canonical handoff copy: [docs/kiro-handoff.md](./docs/kiro-handoff.md).
+Canonical handoff copy: [docs/kiro-handoff.md](./docs/kiro-handoff.md). OpenCode: [docs/opencode-handoff.md](./docs/opencode-handoff.md).
 
 **Repo:** https://github.com/Pulakhitman/places-discovery (public)  
 **Local:** repository root (often `~/Desktop/places-discovery`)  
@@ -58,7 +58,11 @@ Lockfile sync, unlock loop/build fixes, results list + Google banner, sidebar sc
 - Yelp column is optional / not in-repo yet — refuse scraping if explored
 - Reviews official plan: [docs/reviews-official-api-plan.md](./docs/reviews-official-api-plan.md) (official Places API only)
 
-## Constraints for any agent (Cursor or Kiro)
+## OpenCode
+
+For OpenCode sessions, start from [docs/opencode-handoff.md](./docs/opencode-handoff.md) (same product constraints as Kiro / Cursor below).
+
+## Constraints for any agent (Cursor, Kiro, or OpenCode)
 
 - Official Google Places API only for Google data
 - Refuse scraping / unofficial Maps proxies
