@@ -19,7 +19,7 @@ export type BestTimeBlocked = { reason: string; help: string };
 
 const GOOGLE_ONLY: BestTimeBlocked = {
   reason: "Google-only result",
-  help: "BestTime only receives OpenStreetMap data, and this result has no matched OSM record. Google data is never sent to BestTime. Search with OpenStreetMap or Both (merged), then open this place’s OSM row to request busy hours.",
+  help: "BestTime only receives OpenStreetMap data, and this result has no matched OSM record. Google data is never sent to BestTime. Search with OpenStreetMap or Both, then open an independently found OSM row to request busy hours.",
 };
 
 const PRIVATE_KEY_PROBLEM: Record<Exclude<BestTimeKeyState, "ok">, string> = {

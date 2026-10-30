@@ -106,7 +106,7 @@ describe("mergePlaceSources", () => {
     expect(merged[0].matchedOsm?.googlePlaceId).toBeUndefined();
     expect(merged[0].source).toBe("google");
     expect(merged[0].osmId).toBeUndefined();
-    expect(toOsmExportRows(merged).map((row) => row.id)).toEqual(["osm:node/1", "osm:node/2"]);
+    expect(toOsmExportRows(merged).map((row) => row.id)).toEqual(["osm:node/2"]);
   });
 
   it("keeps ambiguous nearby OSM matches separate rather than attributing provider data", () => {

@@ -19,6 +19,9 @@
 
 # production
 /build
+/data/overture/
+*.sqlite.staging
+__pycache__/
 
 # misc
 .DS_Store

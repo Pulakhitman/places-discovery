@@ -1,31 +1,10 @@
 import { describe, expect, it } from "vitest";
-import {
-  clearGoogleDetailsCache,
-  getCachedGoogleDetails,
-  setCachedGoogleDetails,
-} from "./google-details-cache";
-import type { GooglePlaceDetails } from "./google-types";
+import { readFileSync } from "node:fs";
 
-describe("google details cache", () => {
-  it("does not retain review JSON or reviewSummary", () => {
-    clearGoogleDetailsCache();
-    const details: GooglePlaceDetails = {
-      placeId: "ChIJcache",
-      name: "Cafe",
-      lat: 1,
-      lng: 2,
-      reviews: [{ rating: 5, text: "Secret review text" }],
-      reviewSummary: {
-        text: "Do not cache this summary",
-        disclosureText: "Summarized with Gemini",
-      },
-      attribution: "Google Maps",
-    };
-    setCachedGoogleDetails(details);
-    const hit = getCachedGoogleDetails("ChIJcache");
-    expect(hit?.reviews).toEqual([]);
-    expect(hit?.reviewSummary).toBeUndefined();
-    expect(hit?.name).toBe("Cafe");
-    clearGoogleDetailsCache();
+// Guard the paid Details request against reintroducing a cache of Places content.
+describe("Google details retention", () => {
+  it("does not use a server-side details cache", () => {
+    const provider = readFileSync(new URL("../providers/google-places.ts", import.meta.url), "utf8");
+    expect(provider).not.toMatch(/google-details-cache|setCachedGoogleDetails|getCachedGoogleDetails/);
   });
 });

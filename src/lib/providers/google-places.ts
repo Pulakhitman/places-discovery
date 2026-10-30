@@ -1,4 +1,3 @@
-import { setCachedGoogleDetails } from "@/lib/places/google-details-cache";
 import { extractCidFromMapsUri } from "@/lib/places/google-ids";
 import { scoreGoogleMatch, type GoogleMatchInfo } from "@/lib/places/google-match";
 import { recordGoogleUsage } from "@/lib/places/google-usage";
@@ -419,10 +418,6 @@ export async function getGooglePlaceDetails(
 
   const raw = (await res.json()) as GooglePlaceRaw;
   const details = mapGooglePlaceDetails(raw);
-  if (details) {
-    // Store metadata-only (no review JSON) for optional non-review reuse.
-    setCachedGoogleDetails(details);
-  }
   return details;
 }
 
@@ -468,7 +463,7 @@ export async function lookupGoogleForPlace(params: {
     googleLng: best.lng,
   });
 
-  // Text summary omits reviews/hours — fetch full details (cached by placeId).
+  // Text summary omits reviews/hours — fetch live details after the paid click.
   const details = (await getGooglePlaceDetails(best.placeId)) ?? best;
   return { details, match };
 }

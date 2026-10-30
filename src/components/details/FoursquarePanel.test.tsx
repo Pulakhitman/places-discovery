@@ -25,7 +25,7 @@ describe("FoursquarePanel", () => {
     for (const google of [null, { ...place, id: "google:abc", source: "google" as const, googlePlaceId: "abc", sources: { google: true as const } }]) {
       const view = render(<FoursquarePanel place={google} />);
       expect(screen.getByText("Foursquare unavailable: Google-only result")).toBeTruthy();
-      expect(screen.getByText(/Google data is never sent to Foursquare\. Search with OpenStreetMap or Both \(merged\)/)).toBeTruthy();
+      expect(screen.getByText(/Google data is never sent to Foursquare\. Search with OpenStreetMap or Both, then open an independently found OSM row/)).toBeTruthy();
       expect(screen.queryByRole("button")).toBeNull();
       view.unmount();
     }

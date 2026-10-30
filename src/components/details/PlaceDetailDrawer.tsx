@@ -118,6 +118,7 @@ export function osmEnrichmentSnapshot(place: OsmPlace): OsmSnapshot | null {
 }
 
 type GoogleState =
+  | { status: "idle" }
   | { status: "loading" }
   | { status: "unavailable"; message: string }
   | { status: "empty"; message: string }
@@ -149,15 +150,15 @@ function PlaceDetailDrawerInner({
 }) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
-  const [retryNonce, setRetryNonce] = useState(0);
-  const [google, setGoogle] = useState<GoogleState>({ status: "loading" });
+  const [requestNonce, setRequestNonce] = useState(0);
+  const [google, setGoogle] = useState<GoogleState>({ status: "idle" });
   const [configuredHint, setConfiguredHint] = useState<string | null>(null);
   const [acceptedWeakMatch, setAcceptedWeakMatch] = useState(false);
 
-  const retryGoogle = useCallback(() => {
+  const requestGoogleDetails = useCallback(() => {
     setGoogle({ status: "loading" });
     setAcceptedWeakMatch(false);
-    setRetryNonce((n) => n + 1);
+    setRequestNonce((n) => n + 1);
   }, []);
 
   useEffect(() => {
@@ -205,16 +206,42 @@ function PlaceDetailDrawerInner({
   }, []);
 
   useEffect(() => {
+    if (requestNonce === 0) return;
     let cancelled = false;
     const controller = new AbortController();
 
     void (async () => {
       try {
-        // Phase 3: reuse session placeId (no Text Search) when we already matched.
-        const cached = readSessionGooglePlace(place.id);
-        if (cached?.placeId) {
+        // Direct Google results already carry their Place ID; no Text Search needed.
+        if (place.source === "google" && place.googlePlaceId) {
           const res = await fetch(
-            `/api/places/google/${encodeURIComponent(cached.placeId)}`,
+            `/api/places/google/${encodeURIComponent(place.googlePlaceId)}`,
+            { signal: controller.signal },
+          );
+          const data = (await res.json()) as GoogleLookupResponse;
+          if (cancelled) return;
+          if (data.status === "ok") {
+            setGoogle({
+              status: "ok",
+              details: data.details,
+              match: { confidence: "strong", distanceM: 0, nameSimilarity: 1,
+                queriedName: place.name, googleName: data.details.name },
+            });
+            setAcceptedWeakMatch(true);
+            return;
+          }
+          if (data.status === "unavailable" || data.status === "empty") {
+            setGoogle(data);
+            return;
+          }
+          setGoogle({ status: "error", message: data.message, retryable: data.retryable });
+          return;
+        }
+        // Reuse session placeId (no Text Search) when an OSM row was already matched.
+        const cachedPlaceId = readSessionGooglePlace(place.id);
+        if (cachedPlaceId) {
+          const res = await fetch(
+            `/api/places/google/${encodeURIComponent(cachedPlaceId)}`,
             { signal: controller.signal },
           );
           const data = (await res.json()) as GoogleLookupResponse;
@@ -225,9 +252,10 @@ function PlaceDetailDrawerInner({
             setGoogle({
               status: "ok",
               details: data.details,
-              match: cached.match,
+              match: { confidence: "strong", distanceM: 0, nameSimilarity: 1,
+                queriedName: place.name, googleName: data.details.name },
             });
-            setAcceptedWeakMatch(cached.match.confidence === "strong");
+            setAcceptedWeakMatch(true);
             return;
           }
           // Stale id — fall through to name lookup.
@@ -256,11 +284,7 @@ function PlaceDetailDrawerInner({
             queriedName: place.name,
             googleName: data.details.name,
           };
-          writeSessionGooglePlace(place.id, {
-            placeId: data.details.placeId,
-            googleName: data.details.name,
-            match,
-          });
+          writeSessionGooglePlace(place.id, data.details.placeId);
           setGoogle({
             status: "ok",
             details: data.details,
@@ -298,7 +322,7 @@ function PlaceDetailDrawerInner({
       cancelled = true;
       controller.abort();
     };
-  }, [place.id, place.name, place.lat, place.lng, retryNonce]);
+  }, [place.id, place.name, place.lat, place.lng, place.source, place.googlePlaceId, requestNonce]);
 
   const osmWebsiteHref = normalizeHttpUrl(place.website);
   const osmIdentity =
@@ -345,7 +369,7 @@ function PlaceDetailDrawerInner({
             </h2>
             <p className="text-xs text-[var(--muted)]">
               {place.categoryLabel} · {formatDistance(place.distanceM)} ·{" "}
-              {isGoogleRow ? (matchedOsm ? "Google + matched OSM" : "Google only") : "OSM"}
+              {isGoogleRow ? (matchedOsm ? "Google + matched OSM" : "Google only") : place.source === "overture" ? "Overture" : "OSM"}
               {place.isUnnamed ? " · unnamed" : ""}
             </p>
           </div>
@@ -365,7 +389,7 @@ function PlaceDetailDrawerInner({
               id="osm-section"
               className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]"
             >
-              {place.source === "google" ? "Google" : "OpenStreetMap"}
+              {place.source === "google" ? "Google" : place.source === "overture" ? "Overture Places" : "OpenStreetMap"}
             </h3>
             <dl className="mt-2 space-y-2 text-sm">
               <Row label="Address" value={place.address} empty={rowEmpty} />
@@ -386,7 +410,7 @@ function PlaceDetailDrawerInner({
               <span>
                 {osmIdentity
                   ? "© OpenStreetMap contributors · ODbL"
-                  : "Google Maps · display-only, never exported"}
+                  : place.source === "overture" ? `Overture Maps Foundation · ${place.overture?.release ?? "unknown release"} · per-source license` : "Google Maps · display-only, never exported"}
               </span>
               {osmIdentity ? (
                 <>
@@ -408,13 +432,11 @@ function PlaceDetailDrawerInner({
                     value={`${osmIdentity.type}/${osmIdentity.id}`}
                   />
                 </>
+              ) : place.source === "overture" && place.overture ? (
+                <span>GERS ID: {place.overture.id} · {place.overture.sources.map((source) => `${source.dataset} (${source.license ?? "license unspecified"})`).join(", ") || "source not listed"} · confidence {place.overture.confidence ?? "unknown"}</span>
               ) : (
                 <>
-                  <CopyButton label="Copy name" value={place.name} />
-                  <CopyButton
-                    label="Copy coords"
-                    value={formatLatLng(place.lat, place.lng, 6)}
-                  />
+                  {place.googlePlaceId ? <CopyButton label="Copy Google Place ID" value={place.googlePlaceId} /> : null}
                 </>
               )}
             </p>
@@ -489,7 +511,7 @@ function PlaceDetailDrawerInner({
             </ul>
             <p className="mt-1.5 text-[11px] text-[var(--muted)]">
               {!osmSnapshot
-                ? "Google-only result: Google data is never sent to Foursquare or BestTime. Search with OpenStreetMap or Both (merged), then open this place’s OSM row. "
+                ? "This result has no independent OSM record: Google and Overture data are never sent to Foursquare or BestTime. Search with OpenStreetMap or Both, then open an independently found OSM row. "
                 : matchedOsm
                   ? "Uses the matched OSM record above — never this Google result’s details. "
                   : ""}
@@ -497,13 +519,30 @@ function PlaceDetailDrawerInner({
             </p>
           </section>
 
-          <section aria-labelledby="google-section">
+          {place.source !== "overture" ? <section aria-labelledby="google-section">
             <h3
               id="google-section"
               className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]"
             >
               Google Places
             </h3>
+
+            {google.status === "idle" && (
+              <div className="mt-2 space-y-2">
+                <p className="text-sm text-[var(--muted)]">
+                  Hours, ratings and up to five reviews load only when you request them.
+                  Google Place Details is a paid API call; an OSM place may also need
+                  a paid Google Text Search to find its Place ID.
+                </p>
+                <button
+                  type="button"
+                  className="rounded-md border border-[var(--accent)] px-3 py-2 text-sm font-semibold text-[var(--accent)] hover:bg-[var(--surface-2)]"
+                  onClick={requestGoogleDetails}
+                >
+                  Load Google details (paid request)
+                </button>
+              </div>
+            )}
 
             {google.status === "loading" && (
               <p className="mt-2 text-sm text-[var(--muted)]" role="status">
@@ -536,9 +575,9 @@ function PlaceDetailDrawerInner({
                   <button
                     type="button"
                     className="mt-2 text-sm font-medium text-[var(--accent)] underline-offset-2 hover:underline"
-                    onClick={retryGoogle}
+                    onClick={requestGoogleDetails}
                   >
-                    Retry Google lookup
+                    Retry Google details (paid request)
                   </button>
                 ) : null}
               </div>
@@ -553,13 +592,13 @@ function PlaceDetailDrawerInner({
                 onAcceptWeakMatch={() => setAcceptedWeakMatch(true)}
               />
             )}
-          </section>
+          </section> : null}
 
           <FoursquarePanel place={osmSnapshot} matched={Boolean(matchedOsm)} />
           <BestTimePanel place={osmSnapshot} matched={Boolean(matchedOsm)} />
 
           <p className="text-[11px] leading-relaxed text-[var(--muted)]">
-            Google content is display-only with required attribution and is
+            Overture rows are exported only in their own lane. Google content is display-only with required attribution and is
             never included in exports or sent to Foursquare or BestTime.
             Official Places API only — no scraping. Press Esc to close.
           </p>
@@ -679,8 +718,8 @@ function GoogleIdsBlock({ details }: { details: GooglePlaceDetails }) {
     <div className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)]/70 px-3 py-2">
       <p className="text-sm font-medium text-[var(--ink)]">Google IDs</p>
       <p className="mt-0.5 text-[11px] text-[var(--muted)]">
-        From Places API (New) only — display / copy; never exported. No SerpAPI
-        or scrapers.
+        From Places API (New) only — Place IDs can be saved or copied; other
+        Google data stays display-only. No SerpAPI or scrapers.
       </p>
       <ul className="mt-2 space-y-2 text-sm">
         <IdCopyRow

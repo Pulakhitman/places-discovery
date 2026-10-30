@@ -50,7 +50,7 @@ describe("BestTimePanel", () => {
     for (const google of [null, { ...place, source: "google" as const, googlePlaceId: "x", sources: { google: true as const } }, { ...place, sources: { osm: true as const, google: true as const } }]) {
       const view = render(<BestTimePanel place={google} />);
       expect(screen.getByText("Busy hours unavailable: Google-only result")).toBeTruthy();
-      expect(screen.getByText(/Google data is never sent to BestTime\. Search with OpenStreetMap or Both \(merged\)/)).toBeTruthy();
+      expect(screen.getByText(/Google data is never sent to BestTime\. Search with OpenStreetMap or Both, then open an independently found OSM row/)).toBeTruthy();
       expect(screen.getByText(/Google’s official Places API has no busy-hours data/)).toBeTruthy();
       expect(screen.queryByRole("button")).toBeNull();
       view.unmount();

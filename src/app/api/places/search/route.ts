@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { computeOsmCoverage } from "@/lib/places/coverage";
-import {
-  googleDetailsToPlace,
-  mergePlaceSources,
-} from "@/lib/places/google-to-place";
+import { googleDetailsToPlace } from "@/lib/places/google-to-place";
 import { haversineMeters } from "@/lib/places/google-match";
 import {
   isSearchSource,
@@ -13,6 +10,7 @@ import {
   type SearchSource,
 } from "@/lib/places/types";
 import { OverpassError, searchOverpass } from "@/lib/providers/overpass";
+import { OvertureError, OVERTURE_ATTRIBUTION, OVERTURE_LICENSE, searchOverture } from "@/lib/providers/overture";
 import {
   GooglePlacesError,
   isGooglePlacesConfigured,
@@ -55,7 +53,7 @@ function bboxRadiusM(bbox: NominatimBBox): number {
  * - radius mode (default): { mode?: "radius", lat, lng, radiusKm, category, customKeyword?, source? }
  * - area mode: { mode: "area", bbox: [south,north,west,east], category, customKeyword?, lat?, lng?, source? }
  *
- * `source` is "osm" (default), "google", or "both" (merged, Google wins ties).
+ * `source` is "osm" (default), "overture", "google", or "both" (OSM + Google, separate rows).
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -65,6 +63,9 @@ export async function POST(request: Request) {
     return errorResponse("Invalid JSON body.", 400, false);
   }
 
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return errorResponse("Search body must be an object.", 400, false);
+  }
   const payload = body as Record<string, unknown>;
   const modeRaw = payload.mode ?? "radius";
   if (!isSearchMode(modeRaw)) {
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
   const sourceRaw = payload.source ?? "osm";
   if (!isSearchSource(sourceRaw)) {
     return errorResponse(
-      'source must be "osm", "google", or "both".',
+      'source must be "osm", "overture", "google", or "both".',
       400,
       false,
     );
@@ -99,7 +100,11 @@ export async function POST(request: Request) {
     );
   }
 
-  if (source !== "osm" && !isGooglePlacesConfigured()) {
+  if ((source === "google" || source === "both") && payload.googleSearchApproved !== true) {
+    return errorResponse("Approve the billable Google search before continuing.", 400, false);
+  }
+
+  if ((source === "google" || source === "both") && !isGooglePlacesConfigured()) {
     return errorResponse(
       "Google search needs GOOGLE_MAPS_API_KEY. Add it to .env or search OpenStreetMap only.",
       503,
@@ -169,6 +174,15 @@ export async function POST(request: Request) {
   try {
     let osmPlaces: OsmPlace[] = [];
     let googlePlaces: OsmPlace[] = [];
+    let overturePlaces: OsmPlace[] = [];
+    let overtureRelease: string | undefined;
+
+    if (source === "overture") {
+      const result = searchOverture({ lat, lng, radiusM, bbox: bbox ?? undefined,
+        category: categoryRaw, customKeyword });
+      overturePlaces = result.places;
+      overtureRelease = result.release;
+    }
 
     if (runOsm) {
       osmPlaces =
@@ -208,12 +222,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // Do not let Google rankings select or order the exportable OSM lane.
+    // Keep both providers separate; their result sets must not be used to
+    // construct a combined downloadable directory.
     const places =
       source === "both"
-        ? mergePlaceSources(googlePlaces, osmPlaces)
+        ? [...osmPlaces, ...googlePlaces]
         : source === "google"
           ? googlePlaces.sort((a, b) => a.distanceM - b.distanceM)
-          : osmPlaces;
+          : source === "overture" ? overturePlaces : osmPlaces;
 
     const coverage = computeOsmCoverage(places);
     const response: PlacesSearchSuccess = {
@@ -228,17 +245,20 @@ export async function POST(request: Request) {
         bbox,
         center: { lat, lng },
         searchedAt,
+        release: overtureRelease,
         source:
-          source === "both" ? "both" : source === "google" ? "google" : "overpass",
+          source === "both" ? "both" : source === "google" ? "google" : source === "overture" ? "overture" : "overpass",
         attribution:
           source === "osm"
             ? OSM_ATTRIBUTION
+            : source === "overture" ? OVERTURE_ATTRIBUTION
             : source === "google"
               ? GOOGLE_ATTRIBUTION
               : `${OSM_ATTRIBUTION} · ${GOOGLE_ATTRIBUTION}`,
         license:
           source === "osm"
             ? OSM_LICENSE
+            : source === "overture" ? OVERTURE_LICENSE
             : source === "google"
               ? GOOGLE_LICENSE
               : `${OSM_LICENSE} + ${GOOGLE_LICENSE}`,
@@ -247,6 +267,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(response);
   } catch (err) {
+    if (err instanceof OvertureError) {
+      return errorResponse(err.message, err.kind === "unavailable" ? 503 : err.kind === "too_many" ? 413 : 502, false);
+    }
     if (err instanceof OverpassError) {
       if (err.kind === "rate_limited") {
         const bodyErr: PlacesSearchErrorBody = {

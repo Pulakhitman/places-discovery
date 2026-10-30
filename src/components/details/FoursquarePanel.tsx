@@ -13,7 +13,7 @@ export type FoursquareBlocked = { reason: string; help: string };
 
 const GOOGLE_ONLY: FoursquareBlocked = {
   reason: "Google-only result",
-  help: "Foursquare only receives OpenStreetMap data, and this result has no matched OSM record. Google data is never sent to Foursquare. Search with OpenStreetMap or Both (merged), then open this place’s OSM row to look it up.",
+  help: "Foursquare only receives OpenStreetMap data, and this result has no matched OSM record. Google data is never sent to Foursquare. Search with OpenStreetMap or Both, then open an independently found OSM row to look it up.",
 };
 
 /** Why Foursquare cannot be searched for this record, or null when the actions may be offered. */

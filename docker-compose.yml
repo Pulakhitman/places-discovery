@@ -10,6 +10,10 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - HOSTNAME=0.0.0.0
+    # Optional Overture SQLite snapshot, generated outside the web container.
+    # Mount read-only so neither search nor exports can mutate an imported release.
+    volumes:
+      - ${OVERTURE_DATA_DIR:-./data/overture}:/data/overture:ro
     # Traefik / reverse-proxy friendly: expose only — do not publish host ports
     expose:
       - "3000"

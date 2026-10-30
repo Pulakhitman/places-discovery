@@ -133,6 +133,7 @@ export function ResultsPanel({
             ? "OpenStreetMap + Google Places"
             : meta.source === "google"
               ? "Google Places"
+              : meta.source === "overture" ? `Overture Places · release ${meta.release ?? "unknown"}`
               : "OpenStreetMap"}
           {" · "}Searched {formatTime(meta.searchedAt)}
         </p>
@@ -145,7 +146,7 @@ export function ResultsPanel({
             role="status"
           >
             <p className="text-sm font-medium text-[var(--ink)]">
-              No {meta.source === "both" ? "OSM or Google" : meta.source === "google" ? "Google" : "OpenStreetMap"} places found
+              No {meta.source === "both" ? "OSM or Google" : meta.source === "google" ? "Google" : meta.source === "overture" ? "Overture" : "OpenStreetMap"} places found
             </p>
             <p className="mt-1 text-sm text-[var(--muted)]">
               {meta.mode === "area"
@@ -176,11 +177,22 @@ export function ResultsPanel({
               ) : null}
             </p>
           ) : null}
+          {meta.source === "both" || meta.source === "google" ? (
+            <p className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">
+              Google search shows at most 20 places and is not a complete area inventory.
+              OSM results are independent and exportable; Google fields are display-only.
+            </p>
+          ) : null}
           {meta.source === "google" ? (
             <p className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">
               Google-only search has no OSM record to use for Foursquare or BestTime.
-              Choose Both to show matched OSM records when available; forecasts
+              Choose Both to search OSM separately; forecasts
               and Premium details still require separate paid actions.
+            </p>
+          ) : null}
+          {meta.source === "overture" ? (
+            <p className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">
+              Overture snapshot {meta.release ?? ""} · coverage is limited to imported regions. Data may contain duplicates or outdated places; source licenses are preserved in Overture exports.
             </p>
           ) : null}
           <ul className="list-none space-y-2" aria-label="Place results">
@@ -228,17 +240,15 @@ export function ResultsPanel({
                         {place.categoryLabel}
                         {place.isUnnamed ? " · unnamed in OSM" : ""} ·{" "}
                         {place.source === "google"
-                          ? place.matchedOsm
-                            ? "Google · OSM match available for enrichment"
-                            : "Google only · no OSM match"
-                          : "OSM"}
+                          ? "Google only · no OSM match"
+                          : place.source === "overture" ? "Overture" : "OSM"}
                       </p>
                       <p className="mt-1 pl-10 text-sm text-[var(--ink)]">
                         {place.address ?? (
                           <span className="text-[var(--muted)]">
                             {place.source === "google"
                               ? "No address from Google"
-                              : "Address not tagged in OSM"}
+                              : place.source === "overture" ? "No address in Overture" : "Address not tagged in OSM"}
                           </span>
                         )}
                       </p>
@@ -317,8 +327,8 @@ export function ResultsPanel({
           <div className="space-y-2 border-t border-[var(--line)] pt-2">
             <CoverageSummary coverage={state.coverage} />
             <p className="text-[11px] leading-relaxed text-[var(--muted)]">
-              Coverage varies by area. Open a result for Google details and,
-              when an OSM match is available, on-demand Foursquare and BestTime.
+              Coverage varies by area. Open an OSM result for on-demand Google,
+              Foursquare and BestTime enrichment.
               Hourly busy times require a paid BestTime forecast for a precisely
               addressed OSM venue. Exports contain only original OSM fields.
             </p>

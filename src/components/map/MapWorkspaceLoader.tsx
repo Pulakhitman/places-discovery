@@ -72,13 +72,18 @@ export function MapWorkspaceLoader(props: Props) {
 
   const center = props.center ?? { lat: 20, lng: 0 };
   const zoom = props.zoom ?? (props.center ? 12 : 2);
-  const showGoogle =
-    basemap === "google" && Boolean(browser?.enabled && browser.apiKey);
+  const hasGooglePlaces = (props.places ?? []).some((place) => place.source === "google");
+  const googleMapAvailable = Boolean(browser?.enabled && browser.apiKey);
+  const showGoogle = googleMapAvailable && (hasGooglePlaces || basemap === "google");
+  // Places API content cannot be associated with a non-Google map.
+  const osmPlaces = hasGooglePlaces
+    ? (props.places ?? []).filter((place) => place.source !== "google")
+    : props.places;
   const googleNeedsCenter = !props.center;
 
   return (
     <div className="relative h-full min-h-[240px] w-full">
-      {browser?.enabled ? (
+      {googleMapAvailable && !hasGooglePlaces ? (
         <div className="absolute left-2 top-2 z-[1200] flex gap-1 rounded-lg border border-[var(--line)] bg-[color-mix(in_oklab,var(--surface)_94%,transparent)] p-0.5 shadow-sm backdrop-blur-sm">
           <button
             type="button"
@@ -107,6 +112,11 @@ export function MapWorkspaceLoader(props: Props) {
         </div>
       ) : null}
 
+      {hasGooglePlaces && !googleMapAvailable ? (
+        <p className="absolute right-2 top-2 z-[1200] max-w-xs rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--ink)] shadow-sm" role="status">
+          Google results are list-only here. Set GOOGLE_MAPS_BROWSER_KEY to view them on a Google map.
+        </p>
+      ) : null}
       {showGoogle && browser?.apiKey ? (
         <div className="map-shell relative h-full min-h-[280px] overflow-hidden rounded-xl border border-[var(--line)]">
           <GoogleBasemap
@@ -130,7 +140,7 @@ export function MapWorkspaceLoader(props: Props) {
           ) : null}
         </div>
       ) : (
-        <MapWorkspace {...props} />
+        <MapWorkspace {...props} places={osmPlaces} selectedPlaceId={hasGooglePlaces ? null : props.selectedPlaceId} />
       )}
     </div>
   );

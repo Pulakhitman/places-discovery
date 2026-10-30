@@ -48,18 +48,19 @@ const CSV_COLUMNS: (keyof OsmExportRow)[] = [
 ];
 
 /**
- * Flat OSM-only row for exports. Matched Google rows contribute only their
- * separate, original OSM snapshot; Google fields never enter export output.
+ * Flat OSM-only row for exports. Google rows (even with matched OSM snapshots)
+ * never select export records; only independently returned OSM rows count.
  */
 export function toOsmExportRows(places: OsmPlace[]): OsmExportRow[] {
   return places
-    .map((row) => row.source === "osm" ? row : row.source === "google" ? row.matchedOsm : undefined)
     .filter(
       (p): p is OsmPlace & { osmType: string; osmId: number } =>
-        p?.source === "osm" &&
+        p.source === "osm" &&
         p.sources.osm === true &&
         p.sources.google !== true &&
         p.googlePlaceId === undefined &&
+        p.overture === undefined &&
+        p.sources.overture !== true &&
         typeof p.osmType === "string" &&
         typeof p.osmId === "number" &&
         p.id === `osm:${p.osmType}/${p.osmId}`,
@@ -142,9 +143,7 @@ function htmlEscape(value: string): string {
 export function placesToHtml(places: OsmPlace[]): string {
   const rows = toOsmExportRows(places);
   const meta = buildExportMeta(rows.length);
-  const coverage = computeOsmCoverage(places.flatMap((row) =>
-    row.source === "osm" ? [row] : row.matchedOsm ? [row.matchedOsm] : [],
-  ));
+  const coverage = computeOsmCoverage(places.filter((row) => row.source === "osm"));
   const headCells = CSV_COLUMNS.map(
     (col) => `<th>${htmlEscape(col)}</th>`,
   ).join("");
@@ -224,7 +223,21 @@ ${bodyRows}
 `;
 }
 
-export type ExportFormat = "csv" | "json" | "html";
+export function placesToGeoJson(places: OsmPlace[]): string {
+  const rows = toOsmExportRows(places);
+  return `${JSON.stringify({
+    type: "FeatureCollection",
+    meta: buildExportMeta(rows.length),
+    features: rows.map(({ lat, lng, ...properties }) => ({
+      type: "Feature",
+      id: properties.id,
+      geometry: { type: "Point", coordinates: [lng, lat] },
+      properties,
+    })),
+  }, null, 2)}\n`;
+}
+
+export type ExportFormat = "csv" | "json" | "html" | "geojson";
 
 export function placesToExport(
   places: OsmPlace[],
@@ -249,6 +262,12 @@ export function placesToExport(
         filename: `places-osm-${stamp}.html`,
         mime: "text/html;charset=utf-8",
         body: placesToHtml(places),
+      };
+    case "geojson":
+      return {
+        filename: `places-osm-${stamp}.geojson`,
+        mime: "application/geo+json;charset=utf-8",
+        body: placesToGeoJson(places),
       };
     default: {
       const _exhaustive: never = format;

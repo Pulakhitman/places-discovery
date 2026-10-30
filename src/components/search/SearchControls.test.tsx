@@ -25,6 +25,9 @@ function renderControls(overrides: Partial<Props> = {}) {
     loading: false,
     source: "osm",
     googleAvailable: true,
+    overtureAvailable: true,
+    googleCostAccepted: false,
+    onGoogleCostAcceptedChange: vi.fn(),
     onSourceChange: vi.fn(),
     onCategoryChange: vi.fn(),
     onSearchModeChange: vi.fn(),
@@ -45,12 +48,13 @@ function searchButton() {
 afterEach(cleanup);
 
 describe("SearchControls — results source", () => {
-  it("offers OpenStreetMap, Google, and Both as one labelled radio group", () => {
+  it("offers OSM, Overture, Google, and Both as one labelled radio group", () => {
     renderControls();
     const group = screen.getByRole("group", { name: "Results from" });
     const radios = within(group).getAllByRole("radio");
 
-    expect(radios).toHaveLength(3);
+    expect(radios).toHaveLength(4);
+    expect(within(group).getByRole("radio", { name: "Overture Places" })).toBeEnabled();
     expect(
       within(group).getByRole("radio", { name: "OpenStreetMap" }),
     ).toBeChecked();
@@ -90,6 +94,16 @@ describe("SearchControls — results source", () => {
 
     expect(searchButton()).toBeDisabled();
     expect(searchButton()).toHaveAccessibleDescription(/choose OpenStreetMap/i);
+  });
+
+  it("requires a fresh explicit paid approval for Google search", () => {
+    const props = renderControls({ source: "google" });
+    expect(searchButton()).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: /approve a billable Google search/i }));
+    expect(props.onGoogleCostAcceptedChange).toHaveBeenCalledWith(true);
+    cleanup();
+    renderControls({ source: "google", googleCostAccepted: true });
+    expect(searchButton()).toBeEnabled();
   });
 
   it("warns that Google covers an area with a circle", () => {

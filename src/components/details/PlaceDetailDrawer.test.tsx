@@ -31,23 +31,49 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); });
 
 const providerCalls = () => fetcher.mock.calls.filter(([url]) => PROVIDER_URLS.includes(url));
+const googleDetailCalls = () => fetcher.mock.calls.filter(([url]) => url.startsWith("/api/places/google/") && url !== "/api/places/google/status");
 const providerBodies = () => fetcher.mock.calls.filter(([url]) => url !== "/api/health" && PROVIDER_URLS.includes(url)).map(([, init]) => String(init?.body));
 const openDrawer = async (place: OsmPlace) => {
   render(<PlaceDetailDrawer place={place} open onClose={() => {}} />);
-  await screen.findByText(/Google Places is not configured/);
+  await screen.findByRole("button", { name: "Load Google details (paid request)" });
 };
 
 describe("PlaceDetailDrawer enrichment", () => {
   it("explains Google-only rows in the summary and both panels, and calls no provider", async () => {
     await openDrawer(google);
     expect(screen.getByText(/Google only/)).toBeTruthy();
-    expect(screen.getByText(/Google-only result: Google data is never sent to Foursquare or BestTime\. Search with OpenStreetMap or Both \(merged\)/)).toBeTruthy();
+    expect(screen.getByText(/This result has no independent OSM record: Google and Overture data are never sent to Foursquare or BestTime\. Search with OpenStreetMap or Both, then open an independently found OSM row/)).toBeTruthy();
     expect(screen.getByText(/Google’s official Places API has no busy hours/)).toBeTruthy();
     expect(screen.getByText("Foursquare unavailable: Google-only result")).toBeTruthy();
     expect(screen.getByText("Busy hours unavailable: Google-only result")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /paid|Foursquare match/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Load Google details (paid request)" })).toBeTruthy();
     expect(screen.queryByText("Not tagged in OSM")).toBeNull();
     expect(providerCalls()).toHaveLength(0);
+    expect(googleDetailCalls()).toHaveLength(0);
+  });
+
+  it("does not look up an OSM row on opening, but requests a lookup after clicking", async () => {
+    await openDrawer(osm);
+    expect(googleDetailCalls()).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Load Google details (paid request)" }));
+    await waitFor(() => expect(fetcher.mock.calls.some(([url]) => url === "/api/places/google/lookup")).toBe(true));
+  });
+
+  it("loads a Google result's known Place ID only after the paid action, without Text Search", async () => {
+    fetcher.mockImplementation(async (url: string) => new Response(JSON.stringify(
+      url === "/api/places/google/ChIJgoogle123"
+        ? { status: "ok", details: { placeId: "ChIJgoogle123", name: google.name, lat: google.lat, lng: google.lng,
+            reviews: [], attribution: "Google Maps" } }
+        : { configured: true, message: "Google Places ready." },
+    ), { status: 200, headers: { "Content-Type": "application/json" } }));
+    await openDrawer(google);
+    expect(googleDetailCalls()).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Load Google details (paid request)" }));
+    await waitFor(() => expect(googleDetailCalls()).toHaveLength(1));
+    expect(googleDetailCalls()[0][0]).toBe("/api/places/google/ChIJgoogle123");
+    expect(fetcher.mock.calls.some(([url]) => url === "/api/places/google/lookup")).toBe(false);
+    await screen.findByText("Google IDs");
+    expect(screen.getByText("ChIJgoogle123")).toBeTruthy();
   });
 
   it("labels the matched OSM record and sends only its original OSM data to both providers", async () => {

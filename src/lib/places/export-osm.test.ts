@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   placesToCsv,
   placesToExport,
+  placesToGeoJson,
   placesToHtml,
   placesToJson,
   toOsmExportRows,
@@ -56,12 +57,13 @@ describe("OSM exports", () => {
       placesToCsv([sample, googleRow]),
       placesToJson([sample, googleRow]),
       placesToHtml([sample, googleRow]),
+      placesToGeoJson([sample, googleRow]),
     ]) {
       expect(body).not.toContain("Google Only Cafe");
     }
   });
 
-  it("exports only the original OSM snapshot from a merged Google result", () => {
+  it("does not use a Google result to select an OSM export row", () => {
     const merged: OsmPlace = {
       ...sample,
       id: "google:ChIJsecret",
@@ -76,9 +78,8 @@ describe("OSM exports", () => {
       matchedOsm: sample,
     };
     const rows = toOsmExportRows([merged]);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ id: sample.id, name: sample.name, address: sample.address });
-    for (const body of [placesToCsv([merged]), placesToJson([merged]), placesToHtml([merged])]) {
+    expect(rows).toHaveLength(0);
+    for (const body of [placesToCsv([merged]), placesToJson([merged]), placesToHtml([merged]), placesToGeoJson([merged])]) {
       expect(body).not.toMatch(/Google-only name|Google-only address|google\.test|ChIJsecret/);
     }
     expect(toOsmExportRows([{ ...merged, matchedOsm: { ...sample, sources: { osm: true, google: true } } }])).toHaveLength(0);
@@ -116,9 +117,25 @@ describe("OSM exports", () => {
     expect(html).not.toMatch(/"rating"/);
   });
 
+  it("builds a GeoJSON FeatureCollection from original OSM data only", () => {
+    const geojson = JSON.parse(placesToGeoJson([sample])) as {
+      type: string;
+      features: { id: string; geometry: { coordinates: number[] }; properties: { name: string } }[];
+      meta: { license: string };
+    };
+    expect(geojson.type).toBe("FeatureCollection");
+    expect(geojson.meta.license).toBe("ODbL");
+    expect(geojson.features).toEqual([expect.objectContaining({
+      id: sample.id,
+      geometry: { type: "Point", coordinates: [sample.lng, sample.lat] },
+      properties: expect.objectContaining({ name: sample.name }),
+    })]);
+  });
+
   it("picks mime and filename per format", () => {
     expect(placesToExport([sample], "csv").mime).toContain("csv");
     expect(placesToExport([sample], "json").filename).toMatch(/\.json$/);
     expect(placesToExport([sample], "html").body).toContain("<!DOCTYPE html>");
+    expect(placesToExport([sample], "geojson").filename).toMatch(/\.geojson$/);
   });
 });

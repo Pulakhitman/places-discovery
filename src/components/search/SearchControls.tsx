@@ -22,12 +22,15 @@ type Props = {
   loading?: boolean;
   source: SearchSource;
   googleAvailable: boolean;
+  overtureAvailable: boolean;
   onSourceChange: (source: SearchSource) => void;
   onCategoryChange: (id: PlaceCategoryId) => void;
   onSearchModeChange: (mode: SearchMode) => void;
   onRadiusChange: (km: SearchRadiusKm) => void;
   onCustomKeywordChange: (value: string) => void;
   onSearch: () => void;
+  googleCostAccepted: boolean;
+  onGoogleCostAcceptedChange: (accepted: boolean) => void;
   disabled?: boolean;
 };
 
@@ -40,20 +43,26 @@ const SOURCE_COPY: Record<
 > = {
   osm: {
     label: "OpenStreetMap",
-    description: "Open data via Overpass. Every match.",
+    description: "Exportable OSM via Overpass. Coverage varies; not every real-world place is mapped.",
+    tag: "Exportable",
+    tone: "accent",
+  },
+  overture: {
+    label: "Overture Places",
+    description: "Exportable local snapshot; only imported areas. Coverage and quality vary.",
     tag: "Exportable",
     tone: "accent",
   },
   google: {
     label: "Google",
-    description: "Places API (New). Up to 20, uses quota.",
+    description: "Places API (New). Up to 20, billable, not exhaustive.",
     tag: "View only",
     tone: "neutral",
   },
   both: {
     label: "Both",
-    description: "Merged list; keeps matched OSM records.",
-    tag: "Merged",
+    description: "Separate OSM + up to 20 Google results; billable.",
+    tag: "Separate",
     tone: "neutral",
   },
 };
@@ -91,20 +100,25 @@ export function SearchControls({
   loading,
   source,
   googleAvailable,
+  overtureAvailable,
   onSourceChange,
   onCategoryChange,
   onSearchModeChange,
   onRadiusChange,
   onCustomKeywordChange,
   onSearch,
+  googleCostAccepted,
+  onGoogleCostAcceptedChange,
   disabled,
 }: Props) {
-  const usesGoogle = source !== "osm";
+  const usesGoogle = source === "google" || source === "both";
   const customMissing = category === "custom" && !customKeyword.trim();
   const blockedReason = customMissing
     ? "Type a keyword to search for."
     : usesGoogle && !googleAvailable
       ? "Google isn’t available on this server — choose OpenStreetMap."
+      : source === "overture" && !overtureAvailable
+        ? "Overture needs a local snapshot import (see docs/overture.md)."
       : searchMode === "area" && !hasAreaBBox
         ? "Pick an area above first, or search around the pin."
         : searchMode === "area" && areaTooLarge
@@ -112,7 +126,7 @@ export function SearchControls({
           : disabled
             ? "Tap the map or pick an area above to place the pin."
             : null;
-  const searchDisabled = Boolean(loading || blockedReason);
+  const searchDisabled = Boolean(loading || blockedReason || (usesGoogle && !googleCostAccepted));
 
   return (
     <section
@@ -287,13 +301,13 @@ export function SearchControls({
         <legend className="mb-1.5 text-sm font-medium text-[var(--ink)]">
           Results from
         </legend>
-        <div className="grid gap-px overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--line)] @xl:grid-cols-3">
+        <div className="grid gap-px overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--line)] @xl:grid-cols-2">
           {SEARCH_SOURCES.map((option) => (
             <SourceOption
               key={option.id}
               id={option.id}
               checked={source === option.id}
-              unavailable={option.id !== "osm" && !googleAvailable}
+              unavailable={option.id === "overture" ? !overtureAvailable : (option.id === "google" || option.id === "both") && !googleAvailable}
               onSelect={onSourceChange}
             />
           ))}
@@ -309,11 +323,23 @@ export function SearchControls({
               outside it.
             </p>
           ) : null}
+          {!overtureAvailable ? <p>Overture needs an imported regional snapshot (docs/overture.md).</p> : null}
           <p>Picks where results come from, not the map background.</p>
         </div>
       </fieldset>
 
       <div>
+        {usesGoogle ? (
+          <label className="mb-2 flex items-start gap-2 text-xs text-[var(--ink)]">
+            <input
+              type="checkbox"
+              className="mt-0.5 accent-[var(--accent)]"
+              checked={googleCostAccepted}
+              onChange={(event) => onGoogleCostAcceptedChange(event.target.checked)}
+            />
+            <span>I approve a billable Google search (up to 20 results; not an exhaustive inventory). Each new search may charge again.</span>
+          </label>
+        ) : null}
         <button
           type="button"
           className="btn-primary w-full gap-2"
@@ -336,6 +362,9 @@ export function SearchControls({
           )}
         </button>
         <div role="status">
+          {usesGoogle && !googleCostAccepted && !blockedReason ? (
+            <p className="mt-1.5 text-xs text-[var(--warn)]">Approve the paid Google search above to continue.</p>
+          ) : null}
           {blockedReason ? (
             <p
               id="search-blocked-reason"
@@ -348,7 +377,7 @@ export function SearchControls({
       </div>
 
       <p className="text-[11px] text-[var(--muted)]">
-        Official APIs only (Overpass and Google Places) — no scraping.
+        Overpass, official Google Places, and imported Overture Places — no scraping.
       </p>
     </section>
   );

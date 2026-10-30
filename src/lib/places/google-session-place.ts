@@ -1,68 +1,40 @@
-/**
- * Session-only Google placeId reuse (Phase 3).
- * Stores place ids + match metadata — never review text.
- */
-
-import type { GoogleMatchInfo } from "./google-match";
-
+/** Session-only Google Place ID reuse; never persist Google's names or match metadata. */
 const PREFIX = "pd:gplace:";
-
-export type SessionGooglePlace = {
-  placeId: string;
-  googleName: string;
-  match: GoogleMatchInfo;
-};
 
 function keyForOsmPlace(osmPlaceId: string): string {
   return `${PREFIX}${osmPlaceId}`;
 }
 
-export function readSessionGooglePlace(
-  osmPlaceId: string,
-): SessionGooglePlace | null {
-  if (typeof window === "undefined" || !osmPlaceId) {
-    return null;
-  }
+export function readSessionGooglePlace(osmPlaceId: string): string | null {
+  if (typeof window === "undefined" || !osmPlaceId) return null;
   try {
     const raw = sessionStorage.getItem(keyForOsmPlace(osmPlaceId));
-    if (!raw) {
-      return null;
+    if (!raw) return null;
+    // Migrate old records without retaining their Google name or match object.
+    if (raw.startsWith("{")) {
+      const parsed = JSON.parse(raw) as { placeId?: unknown };
+      const id = typeof parsed.placeId === "string" ? parsed.placeId.trim() : "";
+      if (id) sessionStorage.setItem(keyForOsmPlace(osmPlaceId), id);
+      else sessionStorage.removeItem(keyForOsmPlace(osmPlaceId));
+      return id || null;
     }
-    const parsed = JSON.parse(raw) as SessionGooglePlace;
-    if (!parsed?.placeId || !parsed?.match) {
-      return null;
-    }
-    return parsed;
+    return raw.trim() || null;
   } catch {
     return null;
   }
 }
 
-export function writeSessionGooglePlace(
-  osmPlaceId: string,
-  value: SessionGooglePlace,
-): void {
-  if (typeof window === "undefined" || !osmPlaceId || !value.placeId) {
-    return;
-  }
+export function writeSessionGooglePlace(osmPlaceId: string, placeId: string): void {
+  if (typeof window === "undefined" || !osmPlaceId || !placeId.trim()) return;
   try {
-    sessionStorage.setItem(
-      keyForOsmPlace(osmPlaceId),
-      JSON.stringify({
-        placeId: value.placeId,
-        googleName: value.googleName,
-        match: value.match,
-      }),
-    );
+    sessionStorage.setItem(keyForOsmPlace(osmPlaceId), placeId.trim());
   } catch {
-    // Quota / private mode — ignore; lookup still works without reuse.
+    // Quota / private mode — lookup still works without reuse.
   }
 }
 
 export function clearSessionGooglePlace(osmPlaceId: string): void {
-  if (typeof window === "undefined" || !osmPlaceId) {
-    return;
-  }
+  if (typeof window === "undefined" || !osmPlaceId) return;
   try {
     sessionStorage.removeItem(keyForOsmPlace(osmPlaceId));
   } catch {

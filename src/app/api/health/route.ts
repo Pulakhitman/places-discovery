@@ -1,6 +1,7 @@
 import { connection, NextResponse } from "next/server";
 import { isAccessKeyConfigured } from "@/lib/auth/access-key";
 import { isGooglePlacesConfigured } from "@/lib/providers/google-places";
+import { overtureConfigured } from "@/lib/providers/overture";
 import { foursquareConfigured } from "@/lib/providers/foursquare";
 import { bestTimeConfigured, bestTimeKeyStatus } from "@/lib/providers/besttime";
 
@@ -16,6 +17,7 @@ export async function GET() {
     service: "places-discovery",
     ts: new Date().toISOString(),
     googlePlacesConfigured: isGooglePlacesConfigured(),
+    overtureConfigured: overtureConfigured(),
     foursquareConfigured: foursquareConfigured(),
     bestTimeConfigured: bestTimeConfigured(),
     bestTimeKeyStatus: bestTimeKeyStatus(),

@@ -5,19 +5,20 @@ import type {
   SearchRadiusKm,
 } from "@/lib/search/categories";
 
-export type PlaceSource = "osm" | "google";
+export type PlaceSource = "osm" | "google" | "overture";
 
 /** Which lane a search should run. */
-export type SearchSource = "osm" | "google" | "both";
+export type SearchSource = "osm" | "google" | "both" | "overture";
 
 export const SEARCH_SOURCES: readonly { id: SearchSource; label: string }[] = [
   { id: "osm", label: "OpenStreetMap" },
+  { id: "overture", label: "Overture Places" },
   { id: "google", label: "Google" },
-  { id: "both", label: "Both (merged)" },
+  { id: "both", label: "OSM + Google" },
 ];
 
 export function isSearchSource(value: unknown): value is SearchSource {
-  return value === "osm" || value === "google" || value === "both";
+  return value === "osm" || value === "google" || value === "both" || value === "overture";
 }
 
 export type OsmPlace = {
@@ -29,6 +30,16 @@ export type OsmPlace = {
   osmId?: number;
   /** Google place id — present only when `source` is "google". */
   googlePlaceId?: string;
+  /** Overture identity and upstream provenance; never merged into OSM exports. */
+  overture?: {
+    id: string;
+    release: string;
+    taxonomy: string | null;
+    basicCategory: string | null;
+    confidence: number | null;
+    operatingStatus: string | null;
+    sources: { dataset: string; license: string | null }[];
+  };
   name: string;
   /** True when OSM had no name/brand/operator and we synthesized a label. */
   isUnnamed: boolean;
@@ -42,7 +53,7 @@ export type OsmPlace = {
   website?: string;
   phone?: string;
   tags: Record<string, string>;
-  sources: { osm?: true; google?: true };
+  sources: { osm?: true; google?: true; overture?: true };
   /** In Both mode, a separately matched original OSM record. Never copy Google fields into it. */
   matchedOsm?: Omit<OsmPlace, "matchedOsm">;
 };
@@ -76,7 +87,9 @@ export type PlacesSearchSuccess = {
     center: { lat: number; lng: number };
     searchedAt: string;
     /** Which provider produced the rows. */
-    source: "overpass" | "google" | "both";
+    source: "overpass" | "google" | "both" | "overture";
+    /** Populated only for an imported Overture release. */
+    release?: string;
     attribution: string;
     license: string;
   };

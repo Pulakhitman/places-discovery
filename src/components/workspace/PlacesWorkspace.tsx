@@ -82,6 +82,8 @@ export function PlacesWorkspace() {
   );
   const [filters, setFilters] = useState<ResultFilters>(DEFAULT_RESULT_FILTERS);
   const [searchSource, setSearchSource] = useState<SearchSource>("osm");
+  const [googleCostAccepted, setGoogleCostAccepted] = useState(false);
+  const [overtureAvailable, setOvertureAvailable] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
   const [coordsCopied, setCoordsCopied] = useState(false);
@@ -278,9 +280,11 @@ export function PlacesWorkspace() {
         }
         const data = (await res.json()) as {
           googlePlacesConfigured?: boolean;
+          overtureConfigured?: boolean;
         };
         if (!cancelled) {
           setGoogleConfigured(Boolean(data.googlePlacesConfigured));
+          setOvertureAvailable(Boolean(data.overtureConfigured));
         }
       } catch {
         if (!cancelled) {
@@ -300,6 +304,7 @@ export function PlacesWorkspace() {
   }, []);
 
   const runSearch = useCallback(async () => {
+    if ((searchSource === "google" || searchSource === "both") && !googleCostAccepted) return;
     if (searchMode === "area") {
       if (!selectedAreaBBox || areaTooLarge) {
         return;
@@ -330,6 +335,7 @@ export function PlacesWorkspace() {
               lng: mapCenter?.lng,
               category,
               source: searchSource,
+              googleSearchApproved: searchSource === "google" || searchSource === "both" ? googleCostAccepted : undefined,
               customKeyword:
                 category === "custom" ? customKeyword.trim() : undefined,
             }
@@ -340,10 +346,12 @@ export function PlacesWorkspace() {
               radiusKm,
               category,
               source: searchSource,
+              googleSearchApproved: searchSource === "google" || searchSource === "both" ? googleCostAccepted : undefined,
               customKeyword:
                 category === "custom" ? customKeyword.trim() : undefined,
             };
 
+      if (searchSource === "google" || searchSource === "both") setGoogleCostAccepted(false);
       const res = await fetch("/api/places/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -423,6 +431,7 @@ export function PlacesWorkspace() {
     customKeyword,
     searchMode,
     searchSource,
+    googleCostAccepted,
     selectedAreaBBox,
     areaTooLarge,
   ]);
@@ -483,7 +492,10 @@ export function PlacesWorkspace() {
             loading={searchState.status === "loading"}
             source={searchSource}
             googleAvailable={googleConfigured === true}
-            onSourceChange={setSearchSource}
+            overtureAvailable={overtureAvailable}
+            onSourceChange={(next) => { setGoogleCostAccepted(false); setSearchSource(next); }}
+            googleCostAccepted={googleCostAccepted}
+            onGoogleCostAcceptedChange={setGoogleCostAccepted}
             onCategoryChange={setCategory}
             onSearchModeChange={setSearchMode}
             onRadiusChange={setRadiusKm}
